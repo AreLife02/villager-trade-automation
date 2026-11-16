@@ -2,8 +2,6 @@ package com.example.farmerautomation;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -54,7 +52,7 @@ public final class ShopController {
                     return false;
                 }
 
-                clickSlot(screen, goldenCarrotSlot);
+                clickSlot(client, goldenCarrotSlot);
                 waitTicks = MENU_WAIT_TICKS;
                 step = Step.WAIT_CATEGORY_MENU;
             }
@@ -81,7 +79,7 @@ public final class ShopController {
                 }
 
                 carrotsBeforePurchase = InventoryManager.countCarrots(client);
-                clickSlot(screen, carrotSlot);
+                clickSlot(client, carrotSlot);
 
                 purchases++;
                 waitTicks = PURCHASE_WAIT_TICKS;
@@ -109,16 +107,19 @@ public final class ShopController {
         return false;
     }
 
-    private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
-        double x = screen.getX() + slot.x + 8;
-        double y = screen.getY() + slot.y + 8;
-        MouseButtonEvent event = new MouseButtonEvent(
-                x,
-                y,
-                new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0)
-        );
+    private static void clickSlot(Minecraft client, Slot slot) {
+        var window = client.getWindow();
+        double guiScale = window.getGuiScale();
 
-        screen.mouseClicked(event, false);
+        double guiX = slot.x + 8;
+        double guiY = slot.y + 8;
+
+        double mouseX = (client.mouseHandler.xpos() / guiScale) - (client.screen.width / 2.0 - guiX);
+        double mouseY = (client.mouseHandler.ypos() / guiScale) - (client.screen.height / 2.0 - guiY);
+
+        client.mouseHandler.onMove(client.getWindow().getWindow(), mouseX * guiScale, mouseY * guiScale);
+        client.mouseHandler.onButton(client.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_PRESS, 0);
+        client.mouseHandler.onButton(client.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_RELEASE, 0);
     }
 
     private static Slot findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
