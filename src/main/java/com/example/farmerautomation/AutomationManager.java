@@ -230,7 +230,7 @@ public final class AutomationManager {
         }
 
         if (client.player.connection != null) {
-            client.player.connection.sendUnsignedCommand(command.startsWith("/") ? command.substring(1) : command);
+            client.player.connection.sendCommand(command.startsWith("/") ? command.substring(1) : command);
         }
 
         setState(AutomationState.BUYING_CARROTS);
