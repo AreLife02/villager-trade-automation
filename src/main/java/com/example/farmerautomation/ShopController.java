@@ -26,7 +26,8 @@ public final class ShopController {
         WAIT_CARROT_MENU,
         SELECT_64,
         CONFIRM_PURCHASE,
-        WAIT_PURCHASE
+        WAIT_PURCHASE,
+        CLOSE_MENU
     }
 
     private Step step = Step.OPEN_CATEGORY;
@@ -36,7 +37,7 @@ public final class ShopController {
 
     public boolean isFinished(Minecraft client) {
         int carrots = InventoryManager.countCarrots(client);
-        return carrots >= TARGET_CARROTS;
+        return carrots >= TARGET_CARROTS || purchases >= MAX_PURCHASES;
     }
 
     public boolean tick(Minecraft client) {
@@ -45,6 +46,10 @@ public final class ShopController {
         }
 
         if (isFinished(client)) {
+            if (client.screen != null) {
+                client.player.closeContainer();
+            }
+
             return true;
         }
 
@@ -76,7 +81,7 @@ public final class ShopController {
 
             case BUY_CARROTS -> {
                 if (purchases >= MAX_PURCHASES) {
-                    AutomationManager.INSTANCE.fail("Shop alımı için tıklama sınırına ulaşıldı.");
+                    step = Step.CLOSE_MENU;
                     return false;
                 }
 
@@ -126,7 +131,6 @@ public final class ShopController {
                 }
 
                 clickSlot(screen, emeraldBlockSlot);
-                moveCursorAway(screen);
 
                 purchases++;
                 waitTicks = PURCHASE_WAIT_TICKS;
@@ -148,6 +152,14 @@ public final class ShopController {
                 }
 
                 step = Step.BUY_CARROTS;
+            }
+
+            case CLOSE_MENU -> {
+                if (client.screen != null) {
+                    client.player.closeContainer();
+                }
+
+                return true;
             }
         }
 
@@ -171,13 +183,6 @@ public final class ShopController {
         screen.mouseMoved(guiX, guiY);
         screen.mouseClicked(event, false);
         screen.mouseReleased(event);
-    }
-
-    private static void moveCursorAway(AbstractContainerScreen<?> screen) {
-        double safeX = 10.0;
-        double safeY = 10.0;
-
-        screen.mouseMoved(safeX, safeY);
     }
 
     private static Slot findSlotByItem(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
