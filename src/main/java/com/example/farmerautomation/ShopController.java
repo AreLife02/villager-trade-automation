@@ -13,10 +13,10 @@ import org.lwjgl.glfw.GLFW;
 
 public final class ShopController {
     private static final int TARGET_CARROTS = 768;
-    private static final int CATEGORY_WAIT_TICKS = 3;
-    private static final int CARROT_WAIT_TICKS = 3;
-    private static final int PLUS_TEN_WAIT_TICKS = 2;
-    private static final int PURCHASE_WAIT_TICKS = 7;
+    private static final int CATEGORY_WAIT_TICKS = 10;
+    private static final int CARROT_WAIT_TICKS = 10;
+    private static final int PLUS_TEN_WAIT_TICKS = 10;
+    private static final int PURCHASE_WAIT_TICKS = 4;
     private static final int MAX_PURCHASES = 12;
 
     private enum Step {
@@ -126,6 +126,7 @@ public final class ShopController {
                 }
 
                 clickSlot(screen, emeraldBlockSlot);
+                moveCursorAway(screen);
 
                 purchases++;
                 waitTicks = PURCHASE_WAIT_TICKS;
@@ -170,6 +171,13 @@ public final class ShopController {
         screen.mouseMoved(guiX, guiY);
         screen.mouseClicked(event, false);
         screen.mouseReleased(event);
+    }
+
+    private static void moveCursorAway(AbstractContainerScreen<?> screen) {
+        double safeX = 10.0;
+        double safeY = 10.0;
+
+        screen.mouseMoved(safeX, safeY);
     }
 
     private static Slot findSlotByItem(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
