@@ -13,7 +13,7 @@ public final class ShopController {
     private static final int TARGET_CARROTS = 768;
     private static final int MENU_WAIT_TICKS = 20;
     private static final int PURCHASE_WAIT_TICKS = 20;
-    private static final int MAX_PURCHASES = 40;
+    private static final int MAX_PURCHASES = 48;
 
     private enum Step {
         OPEN_CATEGORY,
