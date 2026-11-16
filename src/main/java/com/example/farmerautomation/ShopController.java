@@ -2,6 +2,7 @@ package com.example.farmerautomation;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -24,6 +25,8 @@ public final class ShopController {
     private int waitTicks = 0;
     private int purchases = 0;
     private int carrotsBeforePurchase = -1;
+    private boolean clickPending = false;
+    private int clickDelayTicks = 0;
 
     public boolean isFinished(Minecraft client) {
         int carrots = InventoryManager.countCarrots(client);
@@ -40,6 +43,17 @@ public final class ShopController {
         }
 
         if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+            return false;
+        }
+
+        if (clickPending) {
+            clickDelayTicks--;
+
+            if (clickDelayTicks <= 0) {
+                sendLeftClick(client);
+                clickPending = false;
+            }
+
             return false;
         }
 
@@ -107,9 +121,9 @@ public final class ShopController {
         return false;
     }
 
-    private static void clickSlot(Minecraft client, AbstractContainerScreen<?> screen, Slot slot) {
+    // Fareyi slotun üzerine getirir; tıklama birkaç tick sonra sendLeftClick ile gönderilir.
+    private void clickSlot(Minecraft client, AbstractContainerScreen<?> screen, Slot slot) {
         var window = client.getWindow();
-        double guiScale = window.getGuiScale();
 
         // Standart sandık benzeri GUI: genişlik 176, yükseklik 114 + satır * 18
         int containerRows = Math.max(0, (screen.getMenu().slots.size() - 36) / 9);
@@ -122,11 +136,21 @@ public final class ShopController {
         double guiX = leftPos + slot.x + 8;
         double guiY = topPos + slot.y + 8;
 
-        long handle = window.handle();
+        double cursorX = guiX * window.getScreenWidth() / (double) window.getGuiScaledWidth();
+        double cursorY = guiY * window.getScreenHeight() / (double) window.getGuiScaledHeight();
 
-        client.mouseHandler.onMove(handle, guiX * guiScale, guiY * guiScale);
-        client.mouseHandler.onButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_PRESS, 0);
-        client.mouseHandler.onButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_RELEASE, 0);
+        GLFW.glfwSetCursorPos(window.handle(), cursorX, cursorY);
+
+        clickPending = true;
+        clickDelayTicks = 3;
+    }
+
+    private static void sendLeftClick(Minecraft client) {
+        long handle = client.getWindow().handle();
+        MouseButtonInfo left = new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0);
+
+        client.mouseHandler.onButton(handle, left, GLFW.GLFW_PRESS);
+        client.mouseHandler.onButton(handle, left, GLFW.GLFW_RELEASE);
     }
 
     private static Slot findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
@@ -152,5 +176,7 @@ public final class ShopController {
         waitTicks = 0;
         purchases = 0;
         carrotsBeforePurchase = -1;
+        clickPending = false;
+        clickDelayTicks = 0;
     }
 }
