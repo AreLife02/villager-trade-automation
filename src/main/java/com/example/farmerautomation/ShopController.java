@@ -2,9 +2,12 @@ package com.example.farmerautomation;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import org.lwjgl.glfw.GLFW;
 
 public final class ShopController {
     private static final int TARGET_CARROTS = 768;
@@ -107,10 +110,15 @@ public final class ShopController {
     }
 
     private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
-        int x = screen.leftPos + slot.x + 8;
-        int y = screen.topPos + slot.y + 8;
+        double x = screen.getGuiLeft() + slot.x + 8;
+        double y = screen.getGuiTop() + slot.y + 8;
+        MouseButtonEvent event = new MouseButtonEvent(
+                x,
+                y,
+                new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0)
+        );
 
-        screen.mouseClicked(x, y, 0);
+        screen.mouseClicked(event, false);
     }
 
     private static Slot findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
