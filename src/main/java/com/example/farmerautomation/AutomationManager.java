@@ -5,6 +5,8 @@ import net.minecraft.client.Minecraft;
 public final class AutomationManager {
     public static final AutomationManager INSTANCE = new AutomationManager();
 
+    private final ShopController shopController = new ShopController();
+
     private AutomationState state = AutomationState.IDLE;
     private AutomationState stateBeforePause = AutomationState.IDLE;
     private boolean running = false;
@@ -73,8 +75,9 @@ public final class AutomationManager {
         state = AutomationState.OPENING_SHOP;
         stateBeforePause = AutomationState.OPENING_SHOP;
         currentVillagerIndex = -1;
+        shopController.reset();
 
-        ErrorHandler.info("Otomasyon başlatıldı.");
+        ErrorHandler.info("Otomasyon başlatıldı. Hedef: " + AutomationConfig.get().targetCarrotStacks + " stack havuç.");
     }
 
     public synchronized void pause() {
@@ -123,6 +126,7 @@ public final class AutomationManager {
         state = AutomationState.IDLE;
         stateBeforePause = AutomationState.IDLE;
         currentVillagerIndex = -1;
+        shopController.reset();
 
         ErrorHandler.info("Otomasyon durduruldu.");
     }
@@ -218,42 +222,72 @@ public final class AutomationManager {
     }
 
     private void handleOpeningShop(Minecraft client) {
-        fail("Shop modülü henüz bağlı değil.");
+        String command = AutomationConfig.get().shopCommand;
+
+        if (client.player == null) {
+            fail("Oyuncu bulunamadı.");
+            return;
+        }
+
+        if (client.player.connection != null) {
+            client.player.connection.sendUnsignedCommand(command.startsWith("/") ? command.substring(1) : command);
+        }
+
+        setState(AutomationState.BUYING_CARROTS);
     }
 
     private void handleBuyingCarrots(Minecraft client) {
-        // Henüz uygulanmadı.
+        int carrots = InventoryManager.countCarrots(client);
+        setCarrotsInInventory(Math.max(0, carrots));
+
+        if (carrots < 0) {
+            fail("Oyuncu envanteri okunamadı.");
+            return;
+        }
+
+        if (shopController.isFinished(client)) {
+            ErrorHandler.info("Hedef havuç stoğuna ulaşıldı: " + carrots + "/768.");
+            setState(AutomationState.COMPLETED);
+            return;
+        }
+
+        boolean finished = shopController.tick(client);
+
+        if (finished) {
+            ErrorHandler.info("Hedef havuç stoğuna ulaşıldı: " + InventoryManager.countCarrots(client) + "/768.");
+            setState(AutomationState.COMPLETED);
+        }
     }
 
     private void handleScanningVillagers(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 
     private void handleSelectingVillager(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 
     private void handleNavigating(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 
     private void handleTrading(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 
     private void handleCheckingStock(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 
     private void handleCollectingEmeralds(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 
     private void handleStoringItems(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 
     private void handleSwitchingVillager(Minecraft client) {
-        // Henüz uygulanmadı.
+        // Sonraki aşamada uygulanacak.
     }
 }

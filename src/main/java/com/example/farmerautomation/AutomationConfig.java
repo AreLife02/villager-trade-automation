@@ -18,6 +18,7 @@ public final class AutomationConfig {
     public String carrotItemName = "Havuç";
     public String emeraldItemName = "Zümrüt";
     public String redShulkerName = "Kırmızı Shulker Kutusu";
+    public int targetCarrotStacks = 12;
     public int maxCarrotsPerPurchase = 64;
     public int villagerSearchRadius = 32;
     public int navigationTimeoutTicks = 600;
