@@ -110,8 +110,8 @@ public final class ShopController {
     }
 
     private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
-        double x = screen.getGuiLeft() + slot.x + 8;
-        double y = screen.getGuiTop() + slot.y + 8;
+        double x = screen.getX() + slot.x + 8;
+        double y = screen.getY() + slot.y + 8;
         MouseButtonEvent event = new MouseButtonEvent(
                 x,
                 y,
