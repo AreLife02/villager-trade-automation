@@ -2,7 +2,7 @@ package com.example.farmerautomation;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -44,9 +44,9 @@ public final class ShopController {
 
         switch (step) {
             case OPEN_CATEGORY -> {
-                int goldenCarrotSlot = findSlot(screen, Items.GOLDEN_CARROT);
+                Slot goldenCarrotSlot = findSlot(screen, Items.GOLDEN_CARROT);
 
-                if (goldenCarrotSlot < 0) {
+                if (goldenCarrotSlot == null) {
                     AutomationManager.INSTANCE.fail("Shop menüsünde Altın Havuç bulunamadı.");
                     return false;
                 }
@@ -70,9 +70,9 @@ public final class ShopController {
                     return false;
                 }
 
-                int carrotSlot = findSlot(screen, Items.CARROT);
+                Slot carrotSlot = findSlot(screen, Items.CARROT);
 
-                if (carrotSlot < 0) {
+                if (carrotSlot == null) {
                     AutomationManager.INSTANCE.fail("Kategori menüsünde havuç bulunamadı.");
                     return false;
                 }
@@ -106,22 +106,26 @@ public final class ShopController {
         return false;
     }
 
-    private static void clickSlot(AbstractContainerScreen<?> screen, int slot) {
-        screen.getMenu().clicked(slot, 0, ClickType.PICKUP, Minecraft.getInstance().player);
+    private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
+        int x = screen.leftPos + slot.x + 8;
+        int y = screen.topPos + slot.y + 8;
+
+        screen.mouseClicked(x, y, 0);
     }
 
-    private static int findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
+    private static Slot findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
         var menu = screen.getMenu();
 
         for (int index = 0; index < menu.slots.size(); index++) {
-            ItemStack stack = menu.slots.get(index).getItem();
+            Slot slot = menu.slots.get(index);
+            ItemStack stack = slot.getItem();
 
             if (!stack.isEmpty() && stack.is(item)) {
-                return index;
+                return slot;
             }
         }
 
-        return -1;
+        return null;
     }
 
     public void reset() {
