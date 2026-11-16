@@ -52,7 +52,7 @@ public final class ShopController {
                     return false;
                 }
 
-                clickSlot(client, goldenCarrotSlot);
+                clickSlot(client, screen, goldenCarrotSlot);
                 waitTicks = MENU_WAIT_TICKS;
                 step = Step.WAIT_CATEGORY_MENU;
             }
@@ -79,7 +79,7 @@ public final class ShopController {
                 }
 
                 carrotsBeforePurchase = InventoryManager.countCarrots(client);
-                clickSlot(client, carrotSlot);
+                clickSlot(client, screen, carrotSlot);
 
                 purchases++;
                 waitTicks = PURCHASE_WAIT_TICKS;
@@ -107,25 +107,35 @@ public final class ShopController {
         return false;
     }
 
-    private static void clickSlot(Minecraft client, Slot slot) {
+    private static void clickSlot(Minecraft client, AbstractContainerScreen<?> screen, Slot slot) {
         var window = client.getWindow();
         double guiScale = window.getGuiScale();
 
-        double guiX = slot.x + 8;
-        double guiY = slot.y + 8;
+        // Standart sandık benzeri GUI: genişlik 176, yükseklik 114 + satır * 18
+        int containerRows = Math.max(0, (screen.getMenu().slots.size() - 36) / 9);
+        int imageWidth = 176;
+        int imageHeight = 114 + containerRows * 18;
 
-        double mouseX = (client.mouseHandler.xpos() / guiScale) - (client.screen.width / 2.0 - guiX);
-        double mouseY = (client.mouseHandler.ypos() / guiScale) - (client.screen.height / 2.0 - guiY);
+        double leftPos = (screen.width - imageWidth) / 2.0;
+        double topPos = (screen.height - imageHeight) / 2.0;
 
-        client.mouseHandler.onMove(client.getWindow().getWindow(), mouseX * guiScale, mouseY * guiScale);
-        client.mouseHandler.onButton(client.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_PRESS, 0);
-        client.mouseHandler.onButton(client.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_RELEASE, 0);
+        double guiX = leftPos + slot.x + 8;
+        double guiY = topPos + slot.y + 8;
+
+        long handle = window.handle();
+
+        client.mouseHandler.onMove(handle, guiX * guiScale, guiY * guiScale);
+        client.mouseHandler.onButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_PRESS, 0);
+        client.mouseHandler.onButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT, GLFW.GLFW_RELEASE, 0);
     }
 
     private static Slot findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
         var menu = screen.getMenu();
 
-        for (int index = 0; index < menu.slots.size(); index++) {
+        // Yalnızca shop slotlarına bak; oyuncu envanteri (son 36 slot) hariç
+        int shopSlots = Math.max(0, menu.slots.size() - 36);
+
+        for (int index = 0; index < shopSlots; index++) {
             Slot slot = menu.slots.get(index);
             ItemStack stack = slot.getItem();
 
