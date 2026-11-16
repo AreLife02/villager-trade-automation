@@ -131,6 +131,12 @@ public final class AutomationManager {
         ErrorHandler.info("Otomasyon durduruldu.");
     }
 
+    public synchronized void complete() {
+        running = false;
+        state = AutomationState.COMPLETED;
+        stateBeforePause = AutomationState.COMPLETED;
+    }
+
     public synchronized void fail(String message) {
         ErrorHandler.error(message);
 
@@ -245,17 +251,12 @@ public final class AutomationManager {
             return;
         }
 
-        if (shopController.isFinished(client)) {
-            ErrorHandler.info("Hedef havuç stoğuna ulaşıldı: " + carrots + "/768.");
-            setState(AutomationState.COMPLETED);
-            return;
-        }
-
         boolean finished = shopController.tick(client);
 
         if (finished) {
-            ErrorHandler.info("Hedef havuç stoğuna ulaşıldı: " + InventoryManager.countCarrots(client) + "/768.");
-            setState(AutomationState.COMPLETED);
+            int finalCarrots = InventoryManager.countCarrots(client);
+            ErrorHandler.info("Shop alımı tamamlandı, menü kapatıldı: " + finalCarrots + "/768 havuç.");
+            complete();
         }
     }
 

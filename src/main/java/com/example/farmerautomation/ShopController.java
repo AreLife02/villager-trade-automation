@@ -16,7 +16,12 @@ public final class ShopController {
     private static final int CATEGORY_WAIT_TICKS = 10;
     private static final int CARROT_WAIT_TICKS = 10;
     private static final int PLUS_TEN_WAIT_TICKS = 10;
-    private static final int PURCHASE_WAIT_TICKS = 4;
+    private static final int PURCHASE_WAIT_TICKS = 3;          // 0,15 sn: bir sonraki alıma geçmek için en az bekleme
+    private static final int PURCHASE_TIMEOUT_TICKS = 20;      // 1 sn: havuç artışı bu sürede görülmezse hata
+    private static final int FINAL_PURCHASE_WAIT_TICKS = 10;   // 0,5 sn: 12. alımın tamamen işlenmesi için
+    private static final int CLOSE_WAIT_TICKS = 5;
+    private static final int CLOSE_TIMEOUT_TICKS = 40;
+    private static final int NO_SCREEN_TIMEOUT_TICKS = 100;    // 5 sn: shop menüsü hiç açılmazsa hata
     private static final int MAX_PURCHASES = 12;
 
     private enum Step {
@@ -27,42 +32,66 @@ public final class ShopController {
         SELECT_64,
         CONFIRM_PURCHASE,
         WAIT_PURCHASE,
-        CLOSE_MENU
+        FINAL_WAIT,
+        CLOSE_MENU,
+        WAIT_CLOSE,
+        DONE
     }
 
     private Step step = Step.OPEN_CATEGORY;
     private int waitTicks = 0;
     private int purchases = 0;
     private int carrotsBeforePurchase = -1;
+    private int elapsedTicks = 0;
+    private int noScreenTicks = 0;
+    private String pendingError = null;
 
     public boolean isFinished(Minecraft client) {
         int carrots = InventoryManager.countCarrots(client);
-        return carrots >= TARGET_CARROTS || purchases >= MAX_PURCHASES;
+        return carrots >= TARGET_CARROTS;
     }
 
+    /**
+     * true döner: shop menüsü kapandı ve işlem tamamen bitti.
+     * Hata durumunda AutomationManager.fail çağrılır ve false döner.
+     */
     public boolean tick(Minecraft client) {
         if (client == null || client.player == null) {
             return false;
         }
 
-        if (isFinished(client)) {
-            if (client.screen != null) {
-                client.player.closeContainer();
-            }
-
+        if (step == Step.DONE) {
             return true;
         }
 
+        // Başlangıçta envanterde zaten 768 havuç varsa shop'a hiç tıklama.
+        if (step == Step.OPEN_CATEGORY && InventoryManager.countCarrots(client) >= TARGET_CARROTS) {
+            step = Step.CLOSE_MENU;
+        }
+
+        // Kapatma aşamaları ekran kontrolünden önce çalışır; hiçbir eşyaya tıklanmaz.
+        if (step == Step.CLOSE_MENU || step == Step.WAIT_CLOSE) {
+            return tickClose(client);
+        }
+
         if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+            noScreenTicks++;
+
+            if (noScreenTicks > NO_SCREEN_TIMEOUT_TICKS) {
+                AutomationManager.INSTANCE.fail("Shop menüsü açılmadı veya beklenmedik şekilde kapandı.");
+            }
+
             return false;
         }
+
+        noScreenTicks = 0;
 
         switch (step) {
             case OPEN_CATEGORY -> {
                 Slot goldenCarrotSlot = findSlotByItem(screen, Items.GOLDEN_CARROT);
 
                 if (goldenCarrotSlot == null) {
-                    AutomationManager.INSTANCE.fail("Shop menüsünde Altın Havuç bulunamadı.");
+                    failAndClose(client, "Shop menüsünde Altın Havuç bulunamadı.");
                     return false;
                 }
 
@@ -81,14 +110,15 @@ public final class ShopController {
 
             case BUY_CARROTS -> {
                 if (purchases >= MAX_PURCHASES) {
-                    step = Step.CLOSE_MENU;
+                    // 12 alım yapıldı ama hedefe ulaşılmadı (FINAL_WAIT hedefi doğruluyor, buraya düşmemeli).
+                    failAndClose(client, "12 alıma rağmen envanterde " + InventoryManager.countCarrots(client) + "/768 havuç var.");
                     return false;
                 }
 
                 Slot carrotSlot = findSlotByItem(screen, Items.CARROT);
 
                 if (carrotSlot == null) {
-                    AutomationManager.INSTANCE.fail("Kategori menüsünde havuç bulunamadı.");
+                    failAndClose(client, "Kategori menüsünde havuç bulunamadı.");
                     return false;
                 }
 
@@ -108,7 +138,7 @@ public final class ShopController {
                 Slot plusTenSlot = findSlotByText(screen, "+10", "10 set arttır", "+160");
 
                 if (plusTenSlot == null) {
-                    AutomationManager.INSTANCE.fail("64 havuç seçimi için +10 düğmesi bulunamadı.");
+                    failAndClose(client, "64 havuç seçimi için +10 düğmesi bulunamadı.");
                     return false;
                 }
 
@@ -126,18 +156,43 @@ public final class ShopController {
                 Slot emeraldBlockSlot = findSlotByItem(screen, Items.EMERALD_BLOCK);
 
                 if (emeraldBlockSlot == null) {
-                    AutomationManager.INSTANCE.fail("Satın alma onayı için zümrüt bloğu bulunamadı.");
+                    failAndClose(client, "Satın alma onayı için zümrüt bloğu bulunamadı.");
                     return false;
                 }
 
                 clickSlot(screen, emeraldBlockSlot);
 
                 purchases++;
-                waitTicks = PURCHASE_WAIT_TICKS;
+                elapsedTicks = 0;
                 step = Step.WAIT_PURCHASE;
             }
 
             case WAIT_PURCHASE -> {
+                elapsedTicks++;
+
+                if (elapsedTicks < PURCHASE_WAIT_TICKS) {
+                    return false;
+                }
+
+                int carrotsNow = InventoryManager.countCarrots(client);
+
+                if (carrotsNow <= carrotsBeforePurchase) {
+                    if (elapsedTicks >= PURCHASE_TIMEOUT_TICKS) {
+                        failAndClose(client, "Satın alma sonrası envanterdeki havuç sayısı artmadı.");
+                    }
+
+                    return false;
+                }
+
+                if (purchases >= MAX_PURCHASES) {
+                    waitTicks = FINAL_PURCHASE_WAIT_TICKS;
+                    step = Step.FINAL_WAIT;
+                } else {
+                    step = Step.BUY_CARROTS;
+                }
+            }
+
+            case FINAL_WAIT -> {
                 waitTicks--;
 
                 if (waitTicks > 0) {
@@ -146,24 +201,66 @@ public final class ShopController {
 
                 int carrotsNow = InventoryManager.countCarrots(client);
 
-                if (carrotsNow <= carrotsBeforePurchase) {
-                    AutomationManager.INSTANCE.fail("Satın alma sonrası envanterdeki havuç sayısı artmadı.");
-                    return false;
+                if (carrotsNow >= TARGET_CARROTS) {
+                    step = Step.CLOSE_MENU;
+                } else {
+                    failAndClose(client, "12 alıma rağmen envanterde " + carrotsNow + "/768 havuç var.");
                 }
-
-                step = Step.BUY_CARROTS;
             }
 
-            case CLOSE_MENU -> {
-                if (client.screen != null) {
-                    client.player.closeContainer();
-                }
-
-                return true;
+            default -> {
+                // CLOSE_MENU, WAIT_CLOSE ve DONE yukarıda işlendi.
             }
         }
 
         return false;
+    }
+
+    private boolean tickClose(Minecraft client) {
+        if (step == Step.CLOSE_MENU) {
+            if (client.screen != null) {
+                client.player.closeContainer();
+            }
+
+            elapsedTicks = 0;
+            step = Step.WAIT_CLOSE;
+            return false;
+        }
+
+        elapsedTicks++;
+
+        if (client.screen == null) {
+            if (elapsedTicks >= CLOSE_WAIT_TICKS) {
+                if (pendingError != null) {
+                    String message = pendingError;
+                    pendingError = null;
+                    step = Step.DONE;
+                    AutomationManager.INSTANCE.fail(message);
+                    return false;
+                }
+
+                step = Step.DONE;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (elapsedTicks % 10 == 0) {
+            client.player.closeContainer();
+        }
+
+        if (elapsedTicks >= CLOSE_TIMEOUT_TICKS) {
+            step = Step.DONE;
+            AutomationManager.INSTANCE.fail("Shop menüsü kapatılamadı.");
+        }
+
+        return false;
+    }
+
+    private void failAndClose(Minecraft client, String message) {
+        pendingError = message;
+        step = Step.CLOSE_MENU;
     }
 
     private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
@@ -252,5 +349,8 @@ public final class ShopController {
         waitTicks = 0;
         purchases = 0;
         carrotsBeforePurchase = -1;
+        elapsedTicks = 0;
+        noScreenTicks = 0;
+        pendingError = null;
     }
 }
