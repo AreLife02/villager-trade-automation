@@ -41,7 +41,7 @@ public final class ShopController {
                 int current = InventoryManager.countCarrots(client);
 
                 if (current <= lastCarrotCount) {
-                    ErrorHandler.error("Shop tıklaması envanterdeki havuç sayısını artırmadı. Otomasyon durduruldu.");
+                    ErrorHandler.error("Zümrüt bloğu tıklaması envanterdeki havuç sayısını artırmadı. Otomasyon durduruldu.");
                     AutomationManager.INSTANCE.fail("Shop alımı doğrulanamadı.");
                     return false;
                 }
@@ -67,18 +67,26 @@ public final class ShopController {
             return false;
         }
 
-        if (carrotSlot == lastClickedSlot) {
-            ErrorHandler.error("Aynı Shop slotu tekrar tıklanmaya çalışıldı.");
+        int purchaseSlot = findEmeraldBlockSlot(screen);
+
+        if (purchaseSlot < 0) {
+            ErrorHandler.error("Shop menüsünde satın alma için zümrüt bloğu bulunamadı.");
+            AutomationManager.INSTANCE.fail("Satın alma düğmesi bulunamadı.");
+            return false;
+        }
+
+        if (purchaseSlot == lastClickedSlot) {
+            ErrorHandler.error("Aynı satın alma slotu tekrar tıklanmaya çalışıldı.");
             AutomationManager.INSTANCE.fail("Shop alımı doğrulanamadı.");
             return false;
         }
 
         int before = InventoryManager.countCarrots(client);
         lastCarrotCount = before;
-        lastClickedSlot = carrotSlot;
+        lastClickedSlot = purchaseSlot;
         clicks++;
 
-        screen.getMenu().clicked(carrotSlot, 0, ClickType.PICKUP, client.player);
+        screen.getMenu().clicked(purchaseSlot, 0, ClickType.PICKUP, client.player);
 
         verificationTicks = VERIFICATION_DELAY_TICKS;
         return false;
@@ -91,6 +99,20 @@ public final class ShopController {
             ItemStack stack = menu.slots.get(index).getItem();
 
             if (!stack.isEmpty() && stack.is(Items.CARROT)) {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int findEmeraldBlockSlot(AbstractContainerScreen<?> screen) {
+        var menu = screen.getMenu();
+
+        for (int index = 0; index < menu.slots.size(); index++) {
+            ItemStack stack = menu.slots.get(index).getItem();
+
+            if (!stack.isEmpty() && stack.is(Items.EMERALD_BLOCK)) {
                 return index;
             }
         }
