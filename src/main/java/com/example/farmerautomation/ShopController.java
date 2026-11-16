@@ -160,6 +160,7 @@ public final class ShopController {
                     return false;
                 }
 
+                carrotsBeforePurchase = InventoryManager.countCarrots(client);
                 clickSlot(screen, emeraldBlockSlot);
 
                 purchases++;
@@ -188,7 +189,9 @@ public final class ShopController {
                     waitTicks = FINAL_PURCHASE_WAIT_TICKS;
                     step = Step.FINAL_WAIT;
                 } else {
-                    step = Step.BUY_CARROTS;
+                    // Menü 64 seçili kalıyor: sonraki alımlarda yalnızca Zümrüt Bloğu'na tıkla.
+                    waitTicks = 0;
+                    step = Step.CONFIRM_PURCHASE;
                 }
             }
 
