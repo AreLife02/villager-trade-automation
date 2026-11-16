@@ -13,8 +13,10 @@ import org.lwjgl.glfw.GLFW;
 
 public final class ShopController {
     private static final int TARGET_CARROTS = 768;
-    private static final int MENU_WAIT_TICKS = 10;
-    private static final int PURCHASE_WAIT_TICKS = 20;
+    private static final int CATEGORY_WAIT_TICKS = 3;
+    private static final int CARROT_WAIT_TICKS = 3;
+    private static final int PLUS_TEN_WAIT_TICKS = 2;
+    private static final int PURCHASE_WAIT_TICKS = 7;
     private static final int MAX_PURCHASES = 12;
 
     private enum Step {
@@ -60,7 +62,7 @@ public final class ShopController {
                 }
 
                 clickSlot(screen, goldenCarrotSlot);
-                waitTicks = MENU_WAIT_TICKS;
+                waitTicks = CATEGORY_WAIT_TICKS;
                 step = Step.WAIT_CATEGORY_MENU;
             }
 
@@ -88,7 +90,7 @@ public final class ShopController {
                 carrotsBeforePurchase = InventoryManager.countCarrots(client);
                 clickSlot(screen, carrotSlot);
 
-                waitTicks = MENU_WAIT_TICKS;
+                waitTicks = CARROT_WAIT_TICKS;
                 step = Step.SELECT_64;
             }
 
@@ -106,7 +108,7 @@ public final class ShopController {
                 }
 
                 clickSlot(screen, plusTenSlot);
-                waitTicks = MENU_WAIT_TICKS;
+                waitTicks = PLUS_TEN_WAIT_TICKS;
                 step = Step.CONFIRM_PURCHASE;
             }
 
