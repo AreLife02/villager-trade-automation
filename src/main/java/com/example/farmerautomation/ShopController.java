@@ -19,6 +19,8 @@ public final class ShopController {
         OPEN_CATEGORY,
         WAIT_CATEGORY_MENU,
         BUY_CARROTS,
+        WAIT_CARROT_MENU,
+        CONFIRM_PURCHASE,
         WAIT_PURCHASE
     }
 
@@ -83,6 +85,28 @@ public final class ShopController {
                 carrotsBeforePurchase = InventoryManager.countCarrots(client);
                 clickSlot(screen, carrotSlot);
 
+                waitTicks = MENU_WAIT_TICKS;
+                step = Step.WAIT_CARROT_MENU;
+            }
+
+            case WAIT_CARROT_MENU -> {
+                waitTicks--;
+
+                if (waitTicks <= 0) {
+                    step = Step.CONFIRM_PURCHASE;
+                }
+            }
+
+            case CONFIRM_PURCHASE -> {
+                Slot emeraldBlockSlot = findSlot(screen, Items.EMERALD_BLOCK);
+
+                if (emeraldBlockSlot == null) {
+                    AutomationManager.INSTANCE.fail("Satın alma onayı için zümrüt bloğu bulunamadı.");
+                    return false;
+                }
+
+                clickSlot(screen, emeraldBlockSlot);
+
                 purchases++;
                 waitTicks = PURCHASE_WAIT_TICKS;
                 step = Step.WAIT_PURCHASE;
@@ -98,7 +122,7 @@ public final class ShopController {
                 int carrotsNow = InventoryManager.countCarrots(client);
 
                 if (carrotsNow <= carrotsBeforePurchase) {
-                    AutomationManager.INSTANCE.fail("Havuç tıklaması envanterdeki havuç sayısını artırmadı.");
+                    AutomationManager.INSTANCE.fail("Zümrüt bloğu tıklaması envanterdeki havuç sayısını artırmadı.");
                     return false;
                 }
 
@@ -109,9 +133,7 @@ public final class ShopController {
         return false;
     }
 
-    // Shop GUI'nin kendi tıklama mantığını çalıştırmak için ekrana doğrudan fare olayı gönderir.
     private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
-        // Standart sandık benzeri GUI: genişlik 176, yükseklik 114 + satır * 18
         int containerRows = Math.max(0, (screen.getMenu().slots.size() - 36) / 9);
         int imageWidth = 176;
         int imageHeight = 114 + containerRows * 18;
@@ -133,7 +155,6 @@ public final class ShopController {
     private static Slot findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
         var menu = screen.getMenu();
 
-        // Yalnızca shop slotlarına bak; oyuncu envanteri (son 36 slot) hariç
         int shopSlots = Math.max(0, menu.slots.size() - 36);
 
         for (int index = 0; index < shopSlots; index++) {
