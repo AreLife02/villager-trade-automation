@@ -5,8 +5,8 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.KeyMapping.Category;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.option.KeyMapping.Category;
 import org.lwjgl.glfw.GLFW;
 
 public final class MainMod implements ClientModInitializer {
