@@ -11,15 +11,16 @@ import org.lwjgl.glfw.GLFW;
 
 public final class ShopController {
     private static final int TARGET_CARROTS = 768;
-    private static final int MENU_WAIT_TICKS = 20;
+    private static final int MENU_WAIT_TICKS = 10;
     private static final int PURCHASE_WAIT_TICKS = 20;
-    private static final int MAX_PURCHASES = 48;
+    private static final int MAX_PURCHASES = 12;
 
     private enum Step {
         OPEN_CATEGORY,
         WAIT_CATEGORY_MENU,
         BUY_CARROTS,
         WAIT_CARROT_MENU,
+        SELECT_64,
         CONFIRM_PURCHASE,
         WAIT_PURCHASE
     }
@@ -49,7 +50,7 @@ public final class ShopController {
 
         switch (step) {
             case OPEN_CATEGORY -> {
-                Slot goldenCarrotSlot = findSlot(screen, Items.GOLDEN_CARROT);
+                Slot goldenCarrotSlot = findSlotByItem(screen, Items.GOLDEN_CARROT);
 
                 if (goldenCarrotSlot == null) {
                     AutomationManager.INSTANCE.fail("Shop menüsünde Altın Havuç bulunamadı.");
@@ -75,7 +76,7 @@ public final class ShopController {
                     return false;
                 }
 
-                Slot carrotSlot = findSlot(screen, Items.CARROT);
+                Slot carrotSlot = findSlotByItem(screen, Items.CARROT);
 
                 if (carrotSlot == null) {
                     AutomationManager.INSTANCE.fail("Kategori menüsünde havuç bulunamadı.");
@@ -86,19 +87,34 @@ public final class ShopController {
                 clickSlot(screen, carrotSlot);
 
                 waitTicks = MENU_WAIT_TICKS;
-                step = Step.WAIT_CARROT_MENU;
+                step = Step.SELECT_64;
             }
 
-            case WAIT_CARROT_MENU -> {
-                waitTicks--;
-
-                if (waitTicks <= 0) {
-                    step = Step.CONFIRM_PURCHASE;
+            case SELECT_64 -> {
+                if (waitTicks > 0) {
+                    waitTicks--;
+                    return false;
                 }
+
+                Slot plusTenSlot = findSlotByLore(screen, "+10");
+
+                if (plusTenSlot == null) {
+                    AutomationManager.INSTANCE.fail("64 havuç seçimi için +10 düğmesi bulunamadı.");
+                    return false;
+                }
+
+                clickSlot(screen, plusTenSlot);
+                waitTicks = MENU_WAIT_TICKS;
+                step = Step.CONFIRM_PURCHASE;
             }
 
             case CONFIRM_PURCHASE -> {
-                Slot emeraldBlockSlot = findSlot(screen, Items.EMERALD_BLOCK);
+                if (waitTicks > 0) {
+                    waitTicks--;
+                    return false;
+                }
+
+                Slot emeraldBlockSlot = findSlotByItem(screen, Items.EMERALD_BLOCK);
 
                 if (emeraldBlockSlot == null) {
                     AutomationManager.INSTANCE.fail("Satın alma onayı için zümrüt bloğu bulunamadı.");
@@ -122,7 +138,7 @@ public final class ShopController {
                 int carrotsNow = InventoryManager.countCarrots(client);
 
                 if (carrotsNow <= carrotsBeforePurchase) {
-                    AutomationManager.INSTANCE.fail("Zümrüt bloğu tıklaması envanterdeki havuç sayısını artırmadı.");
+                    AutomationManager.INSTANCE.fail("Satın alma sonrası envanterdeki havuç sayısı artmadı.");
                     return false;
                 }
 
@@ -152,7 +168,7 @@ public final class ShopController {
         screen.mouseReleased(event);
     }
 
-    private static Slot findSlot(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
+    private static Slot findSlotByItem(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
         var menu = screen.getMenu();
 
         int shopSlots = Math.max(0, menu.slots.size() - 36);
@@ -163,6 +179,35 @@ public final class ShopController {
 
             if (!stack.isEmpty() && stack.is(item)) {
                 return slot;
+            }
+        }
+
+        return null;
+    }
+
+    private static Slot findSlotByLore(AbstractContainerScreen<?> screen, String text) {
+        var menu = screen.getMenu();
+
+        int shopSlots = Math.max(0, menu.slots.size() - 36);
+
+        for (int index = 0; index < shopSlots; index++) {
+            Slot slot = menu.slots.get(index);
+            ItemStack stack = slot.getItem();
+
+            if (stack.isEmpty()) {
+                continue;
+            }
+
+            var lore = stack.get(DataComponents.LORE);
+
+            if (lore == null) {
+                continue;
+            }
+
+            for (Component line : lore.lines()) {
+                if (line.getString().contains(text)) {
+                    return slot;
+                }
             }
         }
 
