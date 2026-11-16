@@ -98,7 +98,7 @@ public final class ShopController {
                     return false;
                 }
 
-                Slot plusTenSlot = findSlotByLore(screen, "+10");
+                Slot plusTenSlot = findSlotByText(screen, "+10", "10 set arttır", "+160");
 
                 if (plusTenSlot == null) {
                     AutomationManager.INSTANCE.fail("64 havuç seçimi için +10 düğmesi bulunamadı.");
@@ -187,7 +187,7 @@ public final class ShopController {
         return null;
     }
 
-    private static Slot findSlotByLore(AbstractContainerScreen<?> screen, String text) {
+    private static Slot findSlotByText(AbstractContainerScreen<?> screen, String... texts) {
         var menu = screen.getMenu();
 
         int shopSlots = Math.max(0, menu.slots.size() - 36);
@@ -200,6 +200,18 @@ public final class ShopController {
                 continue;
             }
 
+            var name = stack.get(DataComponents.CUSTOM_NAME);
+
+            if (name != null) {
+                String nameText = name.getString();
+
+                for (String text : texts) {
+                    if (nameText.contains(text)) {
+                        return slot;
+                    }
+                }
+            }
+
             var lore = stack.get(DataComponents.LORE);
 
             if (lore == null) {
@@ -207,8 +219,12 @@ public final class ShopController {
             }
 
             for (Component line : lore.lines()) {
-                if (line.getString().contains(text)) {
-                    return slot;
+                String lineText = line.getString();
+
+                for (String text : texts) {
+                    if (lineText.contains(text)) {
+                        return slot;
+                    }
                 }
             }
         }
