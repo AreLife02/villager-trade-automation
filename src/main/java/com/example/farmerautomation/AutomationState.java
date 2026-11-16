@@ -1,0 +1,18 @@
+package com.example.farmerautomation;
+
+public enum AutomationState {
+    IDLE,
+    OPENING_SHOP,
+    BUYING_CARROTS,
+    SCANNING_VILLAGERS,
+    SELECTING_VILLAGER,
+    NAVIGATING,
+    TRADING,
+    CHECKING_STOCK,
+    COLLECTING_EMERALDS,
+    STORING_ITEMS,
+    SWITCHING_VILLAGER,
+    PAUSED,
+    ERROR,
+    COMPLETED
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "farmerautomation",
+  "version": "${version}",
+  "name": "Farmer Automation",
+  "description": "Client-side farmer villager trading and storage automation helper.",
+  "authors": [
+    "Sen"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.example.farmerautomation.MainMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
