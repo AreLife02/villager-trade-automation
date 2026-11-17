@@ -20,9 +20,10 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Havuç -> zümrüt takas döngüsü (Aşama B-C).
+ * Havuç -> zümrüt takas döngüsü (Aşama B-D).
  * Shift-tıklama kullanılmaz; her takas sonucu tek tıklamayla alınıp envantere yerleştirilir ve doğrulanır.
  * Bir köylünün stoğu bitene kadar takas yapılır, sonra sıradaki erişilebilir çiftçiye geçilir.
+ * Havuç bir sonraki takasa yetmeyince Shop'a dönülür, tamamlanır ve AYNI köylüyle devam edilir.
  */
 public final class CycleController {
     private static final int SCREEN_TIMEOUT = 60;
@@ -34,12 +35,13 @@ public final class CycleController {
     private static final int CLOSE_TIMEOUT = 40;
     private static final int CLOSE_WAIT = 5;
     private static final int MAX_TRADES_PER_VILLAGER = 64;
+    private static final int MAX_REFILLS = 20;
 
     private static final int PAYMENT_SLOT_A = 0;
     private static final int RESULT_SLOT = 2;
 
     private enum Step {
-        START, SCAN, NEXT_VILLAGER, INTERACT, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
+        START, REFILL, SCAN, NEXT_VILLAGER, INTERACT, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
         TAKE_RESULT, WAIT_TAKE, PLACE_RESULT, WAIT_PLACE, VERIFY_TRADE,
         CLOSE, WAIT_CLOSE, FINISH, DONE
     }
@@ -60,7 +62,11 @@ public final class CycleController {
     private int villagerTrades;
     private int farmerIndex;
     private Step afterClose = Step.FINISH;
+    private Step afterRefill = Step.SCAN;
+    private int refills;
     private String finishMessage;
+
+    private final RefillController refill = new RefillController();
 
     /** Stoğu bitmiş / uygun takası olmayan köylüler. Shop gidiş-gelişiyle silinmez; yalnızca reset()'te sıfırlanır. */
     private final Set<UUID> exhausted = new HashSet<>();
@@ -81,8 +87,11 @@ public final class CycleController {
         villagerTrades = 0;
         farmerIndex = 0;
         afterClose = Step.FINISH;
+        afterRefill = Step.SCAN;
+        refills = 0;
         finishMessage = null;
         exhausted.clear();
+        refill.reset();
     }
 
     /** true: iş bitti (başarılı ya da fail çağrıldı). Çağıran durumu kontrol eder. */
@@ -99,10 +108,43 @@ public final class CycleController {
                     if (client.screen instanceof AbstractContainerScreen<?>) {
                         return fail(client, "Başlangıçta açık bir konteyner menüsü var.");
                     }
-                    if (InventoryManager.countCarrots(client) <= 0) {
-                        return fail(client, "Envanterde havuç yok.");
+                    if (InventoryManager.countCarrots(client) < RefillController.TARGET_CARROTS) {
+                        // Önce Shop'tan en az 768 havuca tamamla (64'lük alımlarla yukarı yuvarlanır).
+                        refill.reset();
+                        afterRefill = Step.SCAN;
+                        step = Step.REFILL;
+                    } else {
+                        step = Step.SCAN;
                     }
-                    step = Step.SCAN;
+                }
+                case REFILL -> {
+                    RefillController.Result result = refill.tick(client);
+                    if (result == RefillController.Result.FAILED) {
+                        return fail(client, refill.getError() == null ? "Shop alımı başarısız." : refill.getError());
+                    }
+                    if (result == RefillController.Result.RUNNING) return false;
+
+                    int carrots = InventoryManager.countCarrots(client);
+                    AutomationManager.INSTANCE.setCarrotsInInventory(carrots);
+                    refills++;
+
+                    if (refill.wasLimitedByCapacity()) {
+                        finishMessage = "Envanterde yer yetmediği için Shop'ta daha az havuç alındı (" + carrots
+                                + " havuç). Döngü güvenli şekilde durduruldu; envanterde yer aç ve tekrar başlat.";
+                        step = Step.FINISH;
+                        return false;
+                    }
+                    if (afterRefill == Step.SCAN) {
+                        if (carrots <= 0) return fail(client, "Shop alımından sonra envanterde havuç yok.");
+                        step = Step.SCAN;
+                        return false;
+                    }
+                    // Aynı köylüyle devam: havuç takasa yetiyor mu?
+                    if (carrots < cost) {
+                        return fail(client, "Shop alımından sonra bile havuç yetmiyor: " + carrots + " var, takas "
+                                + cost + " istiyor.");
+                    }
+                    step = Step.INTERACT;
                 }
                 case SCAN -> {
                     farmers.clear();
@@ -338,11 +380,19 @@ public final class CycleController {
         step = Step.CLOSE;
     }
 
-    /** Havuç bir sonraki takasa yetmiyor. Aşama C: durur (D'de Shop'a dönülecek). */
+    /** Havuç bir sonraki takasa yetmiyor: menüyü kapat, Shop'a dön, aynı köylüyle devam et. */
     private void notEnoughCarrots(Minecraft client, int carrots) {
-        finishMessage = "Havuç bir sonraki takasa yetmedi (" + carrots + " var, " + cost + " gerekli). "
-                + tradesDone + " takas yapıldı.";
-        afterClose = Step.FINISH;
+        if (refills >= MAX_REFILLS) {
+            finishMessage = "Shop'a dönüş sınırına ulaşıldı (" + MAX_REFILLS + "); " + tradesDone + " takas yapıldı.";
+            afterClose = Step.FINISH;
+            step = Step.CLOSE;
+            return;
+        }
+        chat(client, "Havuç bir sonraki takasa yetmiyor (" + carrots + " var, " + cost
+                + " gerekli); Shop'a dönülüyor. Çiftçi " + (farmerIndex + 1) + " ile devam edilecek.");
+        refill.reset();
+        afterRefill = Step.INTERACT;
+        afterClose = Step.REFILL;
         step = Step.CLOSE;
     }
 
