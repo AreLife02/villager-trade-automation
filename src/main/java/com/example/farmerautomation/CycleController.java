@@ -14,11 +14,15 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
- * Aşama B: en yakın erişilebilir çiftçiyle GERÇEKTEN yalnızca tek havuç -> zümrüt takası.
- * Shift-tıklama kullanılmaz; sonuç slotundan tek tıklamayla alınıp envantere yerleştirilir.
+ * Havuç -> zümrüt takas döngüsü (Aşama B-C).
+ * Shift-tıklama kullanılmaz; her takas sonucu tek tıklamayla alınıp envantere yerleştirilir ve doğrulanır.
+ * Bir köylünün stoğu bitene kadar takas yapılır, sonra sıradaki erişilebilir çiftçiye geçilir.
  */
 public final class CycleController {
     private static final int SCREEN_TIMEOUT = 60;
@@ -29,12 +33,13 @@ public final class CycleController {
     private static final int VERIFY_TIMEOUT = 40;
     private static final int CLOSE_TIMEOUT = 40;
     private static final int CLOSE_WAIT = 5;
+    private static final int MAX_TRADES_PER_VILLAGER = 64;
 
     private static final int PAYMENT_SLOT_A = 0;
     private static final int RESULT_SLOT = 2;
 
     private enum Step {
-        START, SCAN, INTERACT, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
+        START, SCAN, NEXT_VILLAGER, INTERACT, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
         TAKE_RESULT, WAIT_TAKE, PLACE_RESULT, WAIT_PLACE, VERIFY_TRADE,
         CLOSE, WAIT_CLOSE, FINISH, DONE
     }
@@ -52,7 +57,13 @@ public final class CycleController {
     private int emeraldsBefore;
     private int targetSlot;
     private int tradesDone;
+    private int villagerTrades;
+    private int farmerIndex;
+    private Step afterClose = Step.FINISH;
     private String finishMessage;
+
+    /** Stoğu bitmiş / uygun takası olmayan köylüler. Shop gidiş-gelişiyle silinmez; yalnızca reset()'te sıfırlanır. */
+    private final Set<UUID> exhausted = new HashSet<>();
 
     public void reset() {
         step = Step.START;
@@ -67,7 +78,11 @@ public final class CycleController {
         emeraldsBefore = 0;
         targetSlot = -1;
         tradesDone = 0;
+        villagerTrades = 0;
+        farmerIndex = 0;
+        afterClose = Step.FINISH;
         finishMessage = null;
+        exhausted.clear();
     }
 
     /** true: iş bitti (başarılı ya da fail çağrıldı). Çağıran durumu kontrol eder. */
@@ -96,14 +111,32 @@ public final class CycleController {
                     if (farmers.isEmpty()) {
                         return fail(client, "Erişilebilir çiftçi bulunamadı (menzil/görüş).");
                     }
-                    current = farmers.get(0);
-                    AutomationManager.INSTANCE.setCurrentVillagerIndex(0);
-                    chat(client, farmers.size() + " erişilebilir çiftçi; en yakınla tek takas denenecek.");
+                    farmerIndex = -1;
+                    chat(client, farmers.size() + " erişilebilir çiftçi bulundu (en yakından uzağa).");
+                    step = Step.NEXT_VILLAGER;
+                }
+                case NEXT_VILLAGER -> {
+                    farmerIndex++;
+                    while (farmerIndex < farmers.size() && exhausted.contains(farmers.get(farmerIndex).getUUID())) {
+                        farmerIndex++;
+                    }
+                    if (farmerIndex >= farmers.size()) {
+                        finishMessage = "Döngü bitti: " + tradesDone + " takas yapıldı, sıradaki çiftçi kalmadı.";
+                        step = Step.FINISH;
+                        return false;
+                    }
+                    current = farmers.get(farmerIndex);
+                    villagerTrades = 0;
+                    AutomationManager.INSTANCE.setCurrentVillagerIndex(farmerIndex);
+                    chat(client, "Çiftçi " + (farmerIndex + 1) + "/" + farmers.size() + " ile devam ediliyor.");
                     step = Step.INTERACT;
                 }
                 case INTERACT -> {
                     if (!FarmerScanner.isAccessible(client, current)) {
-                        return fail(client, "Çiftçi etkileşimden önce erişilemez oldu.");
+                        exhausted.add(current.getUUID());
+                        chat(client, "Çiftçi erişilemez oldu; atlanıyor.");
+                        step = Step.NEXT_VILLAGER;
+                        return false;
                     }
                     client.gameMode.interact(client.player, current, InteractionHand.MAIN_HAND);
                     ticks = 0;
@@ -126,7 +159,7 @@ public final class CycleController {
                         if (++ticks > OFFERS_TIMEOUT) return fail(client, "Takas listesi zamanında gelmedi.");
                         return false;
                     }
-                    if (!locateOffer(client, menu)) return true;
+                    if (!locateOffer(client, menu)) return false;
                     step = Step.SELECT_TRADE;
                 }
                 case SELECT_TRADE -> {
@@ -134,10 +167,16 @@ public final class CycleController {
                         return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
                     }
                     int carrots = InventoryManager.countCarrots(client);
+                    if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
+                        villagerDone(client, "güvenlik sınırı (" + MAX_TRADES_PER_VILLAGER + " takas) doldu");
+                        return false;
+                    }
                     if (carrots < cost) {
-                        return fail(client, "Havuç yetmiyor: " + carrots + " var, takas " + cost + " istiyor.");
+                        notEnoughCarrots(client, carrots);
+                        return false;
                     }
                     carrotsBefore = carrots;
+                    selectRetries = 0;
                     emeraldsBefore = InventoryManager.countEmeralds(client);
                     sendSelect(client, screen.getMenu());
                     ticks = 0;
@@ -157,7 +196,12 @@ public final class CycleController {
                     }
                     if (ticks > RESULT_TIMEOUT) {
                         if (++selectRetries > MAX_SELECT_RETRIES) {
-                            return fail(client, diagnoseNoResult(client, menu));
+                            String reason = diagnoseNoResult(client, menu);
+                            if (reason == null) {
+                                villagerDone(client, "stok bitti ya da takas kilitli (sunucu sonuç vermedi)");
+                                return false;
+                            }
+                            return fail(client, reason);
                         }
                         sendSelect(client, menu);
                         ticks = 0;
@@ -215,11 +259,13 @@ public final class CycleController {
                     boolean emeraldsOk = emeralds == emeraldsBefore + resultCount;
                     if (carrotsOk && emeraldsOk) {
                         tradesDone++;
+                        villagerTrades++;
                         chat(client, "Takas doğrulandı: havuç " + carrotsBefore + " -> " + carrots
                                 + ", zümrüt " + emeraldsBefore + " -> " + emeralds + ".");
                         AutomationManager.INSTANCE.addEmeralds(resultCount);
-                        finishMessage = "Tek takas tamamlandı (Aşama B). Havuç -" + cost + ", zümrüt +" + resultCount + ".";
-                        step = Step.CLOSE;
+                        ticks = 0;
+                        selectRetries = 0;
+                        step = Step.SELECT_TRADE;
                     } else if (++ticks > VERIFY_TIMEOUT) {
                         return fail(client, "Takas doğrulanamadı: havuç " + carrotsBefore + " -> " + carrots
                                 + " (beklenen " + (carrotsBefore - cost) + "), zümrüt " + emeraldsBefore + " -> "
@@ -236,7 +282,7 @@ public final class CycleController {
                 case WAIT_CLOSE -> {
                     ticks++;
                     if (!(client.screen instanceof AbstractContainerScreen<?>)) {
-                        if (ticks >= CLOSE_WAIT) step = Step.FINISH;
+                        if (ticks >= CLOSE_WAIT) step = afterClose;
                     } else {
                         if (ticks % 10 == 0) client.player.closeContainer();
                         if (ticks > CLOSE_TIMEOUT) return fail(client, "Takas menüsü kapatılamadı.");
@@ -268,7 +314,7 @@ public final class CycleController {
 
             if (costA.is(Items.CARROT) && costB.isEmpty() && result.is(Items.EMERALD)) {
                 if (offer.isOutOfStock()) {
-                    fail(client, "Havuç -> zümrüt takasının stoğu bitmiş.");
+                    villagerDone(client, "havuç -> zümrüt stoğu bitmiş");
                     return false;
                 }
                 offerIndex = index;
@@ -280,8 +326,24 @@ public final class CycleController {
             index++;
         }
 
-        fail(client, "Bu çiftçide havuç -> zümrüt takası yok.");
+        villagerDone(client, "havuç -> zümrüt takası yok");
         return false;
+    }
+
+    /** Bu köylü bu turda bitti: kaydet, menüyü kapat, sıradakine geç. */
+    private void villagerDone(Minecraft client, String reason) {
+        if (current != null) exhausted.add(current.getUUID());
+        chat(client, "Çiftçi " + (farmerIndex + 1) + " bitti (" + reason + "); " + villagerTrades + " takas yapıldı.");
+        afterClose = Step.NEXT_VILLAGER;
+        step = Step.CLOSE;
+    }
+
+    /** Havuç bir sonraki takasa yetmiyor. Aşama C: durur (D'de Shop'a dönülecek). */
+    private void notEnoughCarrots(Minecraft client, int carrots) {
+        finishMessage = "Havuç bir sonraki takasa yetmedi (" + carrots + " var, " + cost + " gerekli). "
+                + tradesDone + " takas yapıldı.";
+        afterClose = Step.FINISH;
+        step = Step.CLOSE;
     }
 
     private void sendSelect(Minecraft client, MerchantMenu menu) {
@@ -295,7 +357,7 @@ public final class CycleController {
         int carrots = InventoryManager.countCarrots(client);
 
         if (payment.is(Items.CARROT) && payment.getCount() >= cost) {
-            return "Havuçlar takas slotuna yerleşti ama sunucu sonuç vermedi; stok bitmiş ya da takas kilitli olabilir.";
+            return null; // havuç yerleşti ama sonuç yok: stok bitti / kilitli
         }
         if (carrots < cost) {
             return "Havuç yetmiyor: " + carrots + " var, takas " + cost + " istiyor.";
