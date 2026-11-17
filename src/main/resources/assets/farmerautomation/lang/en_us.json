@@ -3,6 +3,7 @@
   "category.farmerautomation": "Farmer Automation",
   "screen.farmerautomation.title": "Farmer Automation",
   "screen.farmerautomation.start": "Start",
+  "screen.farmerautomation.cycle": "Cycle",
   "screen.farmerautomation.pause": "Pause",
   "screen.farmerautomation.resume": "Resume",
   "screen.farmerautomation.stop": "Stop"

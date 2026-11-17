@@ -22,32 +22,36 @@ public final class AutomationScreen extends Screen {
 
         this.addRenderableWidget(Button.builder(
                         Component.translatable("screen.farmerautomation.start"),
-                        button -> manager.start()
-                )
+                        button -> manager.start())
                 .bounds(centerX - 105, y, 100, 20)
                 .build());
 
         this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.pause"),
-                        button -> manager.pause()
-                )
+                        Component.translatable("screen.farmerautomation.cycle"),
+                        button -> manager.startCycle())
                 .bounds(centerX + 5, y, 100, 20)
                 .build());
 
         y += 25;
 
         this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.resume"),
-                        button -> manager.resume()
-                )
+                        Component.translatable("screen.farmerautomation.pause"),
+                        button -> manager.pause())
                 .bounds(centerX - 105, y, 100, 20)
                 .build());
 
         this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.stop"),
-                        button -> manager.stop()
-                )
+                        Component.translatable("screen.farmerautomation.resume"),
+                        button -> manager.resume())
                 .bounds(centerX + 5, y, 100, 20)
+                .build());
+
+        y += 25;
+
+        this.addRenderableWidget(Button.builder(
+                        Component.translatable("screen.farmerautomation.stop"),
+                        button -> manager.stop())
+                .bounds(centerX - 50, y, 100, 20)
                 .build());
     }
 
@@ -56,25 +60,12 @@ public final class AutomationScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
 
         AutomationState state = manager.getState();
+        graphics.drawCenteredString(this.font, Component.translatable("screen.farmerautomation.title"),
+                this.width / 2, 15, 0xFFFFFF);
+        graphics.drawCenteredString(this.font, Component.literal("Durum: " + state.name()),
+                this.width / 2, 30, 0xFFFF55);
 
-        graphics.drawCenteredString(
-                this.font,
-                Component.translatable("screen.farmerautomation.title"),
-                this.width / 2,
-                15,
-                0xFFFFFF
-        );
-
-        graphics.drawCenteredString(
-                this.font,
-                Component.literal("Durum: " + state.name()),
-                this.width / 2,
-                30,
-                0xFFFF55
-        );
-
-        int y = 110;
-
+        int y = 135;
         y = drawInfo(graphics, y, "Çalışıyor: " + yesNo(manager.isRunning()));
         y = drawInfo(graphics, y, "Bulunan köylü: " + manager.getVillagerCount());
         y = drawInfo(graphics, y, "Aktif köylü: " + activeVillagerText());
@@ -82,20 +73,11 @@ public final class AutomationScreen extends Screen {
         y = drawInfo(graphics, y, "Envanterdeki havuç: " + inventoryCarrotText());
         y = drawInfo(graphics, y, "Shulker doluluk: " + shulkerText());
         y = drawInfo(graphics, y, "Son bilgi: " + ErrorHandler.getLastInfo());
-
         drawInfo(graphics, y + 5, "Son hata: " + ErrorHandler.getLastError());
     }
 
     private int drawInfo(GuiGraphics graphics, int y, String text) {
-        graphics.drawString(
-                this.font,
-                text,
-                this.width / 2 - 120,
-                y,
-                0xFFFFFF,
-                true
-        );
-
+        graphics.drawString(this.font, text, this.width / 2 - 120, y, 0xFFFFFF, true);
         return y + 14;
     }
 
@@ -105,28 +87,19 @@ public final class AutomationScreen extends Screen {
 
     private String activeVillagerText() {
         int index = manager.getCurrentVillagerIndex();
-
-        if (index < 0) {
-            return "Yok";
-        }
-
-        return (index + 1) + ". köylü";
+        return index < 0 ? "Yok" : (index + 1) + ". köylü";
     }
 
     private String inventoryCarrotText() {
-        if (manager.getCarrotsInInventory() < 0) {
-            return "Henüz okunmuyor";
-        }
-
-        return String.valueOf(manager.getCarrotsInInventory());
+        return manager.getCarrotsInInventory() < 0
+                ? "Henüz okunmuyor"
+                : String.valueOf(manager.getCarrotsInInventory());
     }
 
     private String shulkerText() {
-        if (manager.getShulkerTotalSlots() <= 0) {
-            return "Henüz okunmuyor";
-        }
-
-        return manager.getShulkerUsedSlots() + "/" + manager.getShulkerTotalSlots();
+        return manager.getShulkerTotalSlots() <= 0
+                ? "Henüz okunmuyor"
+                : manager.getShulkerUsedSlots() + "/" + manager.getShulkerTotalSlots();
     }
 
     @Override
