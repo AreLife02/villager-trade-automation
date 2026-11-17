@@ -1,11 +1,19 @@
 package com.example.farmerautomation;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 public final class AutomationManager {
     public static final AutomationManager INSTANCE = new AutomationManager();
 
+    private enum Mode {
+        NONE,
+        SHOP,
+        CYCLE
+    }
+
     private final ShopController shopController = new ShopController();
+    private final DiagnosticController diagnosticController = new DiagnosticController();
 
     private AutomationState state = AutomationState.IDLE;
     private AutomationState stateBeforePause = AutomationState.IDLE;
@@ -72,12 +80,45 @@ public final class AutomationManager {
         }
 
         running = true;
+        mode = Mode.SHOP;
         state = AutomationState.OPENING_SHOP;
         stateBeforePause = AutomationState.OPENING_SHOP;
         currentVillagerIndex = -1;
         shopController.reset();
 
         ErrorHandler.info("Otomasyon başlatıldı. Hedef: " + AutomationConfig.get().targetCarrotStacks + " stack havuç.");
+    }
+
+    /**
+     * "Döngü" düğmesi: Aşama A'da yalnızca teşhis yapar
+     * (satın alma ve takas yok). Sonraki aşamalarda tam döngüye dönüşecek.
+     */
+    public synchronized void startCycle() {
+        if (running) {
+            ErrorHandler.info("Otomasyon zaten çalışıyor.");
+            return;
+        }
+
+        if (state == AutomationState.PAUSED) {
+            ErrorHandler.info("Duraklatılmış otomasyon için 'Devam' düğmesini kullan.");
+            return;
+        }
+
+        if (state != AutomationState.IDLE
+                && state != AutomationState.ERROR
+                && state != AutomationState.COMPLETED) {
+            ErrorHandler.info("Döngü şu anda başlatılamaz. Durum: " + state);
+            return;
+        }
+
+        running = true;
+        mode = Mode.CYCLE;
+        state = AutomationState.DIAGNOSTIC;
+        stateBeforePause = AutomationState.DIAGNOSTIC;
+        currentVillagerIndex = -1;
+        diagnosticController.reset();
+
+        ErrorHandler.info("Döngü (teşhis) başlatıldı: Shop düğmeleri ve erişilebilir çiftçiler okunacak.");
     }
 
     public synchronized void pause() {
@@ -127,8 +168,20 @@ public final class AutomationManager {
         stateBeforePause = AutomationState.IDLE;
         currentVillagerIndex = -1;
         shopController.reset();
+        diagnosticController.reset();
+        closeOpenContainer();
 
         ErrorHandler.info("Otomasyon durduruldu.");
+    }
+
+    /** Açık kalmış herhangi bir konteyner menüsünü (shop/takas) güvenle kapatır. */
+    private void closeOpenContainer() {
+        Minecraft client = Minecraft.getInstance();
+
+        if (client != null && client.player != null
+                && client.screen instanceof AbstractContainerScreen) {
+            client.player.closeContainer();
+        }
     }
 
     public synchronized void complete() {
@@ -217,6 +270,7 @@ public final class AutomationManager {
                 case COLLECTING_EMERALDS -> handleCollectingEmeralds(client);
                 case STORING_ITEMS -> handleStoringItems(client);
                 case SWITCHING_VILLAGER -> handleSwitchingVillager(client);
+                case DIAGNOSTIC -> handleDiagnostic(client);
                 default -> {
                     // IDLE, PAUSED, ERROR ve COMPLETED burada işlem görmez.
                 }
@@ -256,6 +310,14 @@ public final class AutomationManager {
         if (finished) {
             int finalCarrots = InventoryManager.countCarrots(client);
             ErrorHandler.info("Shop alımı tamamlandı, menü kapatıldı: " + finalCarrots + "/768 havuç.");
+            complete();
+        }
+    }
+
+    private void handleDiagnostic(Minecraft client) {
+        boolean finished = diagnosticController.tick(client);
+
+        if (finished && running) {
             complete();
         }
     }

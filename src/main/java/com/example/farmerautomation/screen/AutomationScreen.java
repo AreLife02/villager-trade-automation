@@ -49,6 +49,15 @@ public final class AutomationScreen extends Screen {
                 )
                 .bounds(centerX + 5, y, 100, 20)
                 .build());
+
+        y += 25;
+
+        this.addRenderableWidget(Button.builder(
+                        Component.translatable("screen.farmerautomation.cycle"),
+                        button -> manager.startCycle()
+                )
+                .bounds(centerX - 105, y, 210, 20)
+                .build());
     }
 
     @Override
