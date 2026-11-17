@@ -1,0 +1,11 @@
+package com.example.farmerautomation;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
+import org.lwjgl.glfw.GLFW;
+
+public final class ShopController {
