@@ -3,6 +3,8 @@ package com.example.farmerautomation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
@@ -11,12 +13,16 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -76,10 +82,10 @@ public final class DiagnosticController {
                 case CLICK_CATEGORY -> {
                     if (!(client.screen instanceof AbstractContainerScreen<?> screen))
                         return fail(client, "Shop menüsü beklenmedik şekilde kapandı.");
-                    Slot slot = ShopController.findSlotByItem(screen, Items.GOLDEN_CARROT);
+                    Slot slot = findSlotByItem(screen, Items.GOLDEN_CARROT);
                     if (slot == null) return fail(client, "Shop menüsünde Altın Havuç bulunamadı.");
                     chat(client, "Altın Havuç kategorisi açılıyor.");
-                    ShopController.clickSlot(screen, slot);
+                    clickSlot(screen, slot);
                     waitTicks = MENU_DELAY;
                     step = Step.WAIT_CATEGORY;
                 }
@@ -89,10 +95,10 @@ public final class DiagnosticController {
                 case CLICK_CARROT -> {
                     if (!(client.screen instanceof AbstractContainerScreen<?> screen))
                         return fail(client, "Kategori menüsü beklenmedik şekilde kapandı.");
-                    Slot slot = ShopController.findSlotByItem(screen, Items.CARROT);
+                    Slot slot = findSlotByItem(screen, Items.CARROT);
                     if (slot == null) return fail(client, "Kategori menüsünde Havuç bulunamadı.");
                     chat(client, "Havuç miktar menüsü açılıyor; satın alma yapılmayacak.");
-                    ShopController.clickSlot(screen, slot);
+                    clickSlot(screen, slot);
                     waitTicks = MENU_DELAY;
                     step = Step.WAIT_CARROT;
                 }
@@ -205,13 +211,13 @@ public final class DiagnosticController {
             villagers++;
             if (villager.getVillagerData().profession().is(VillagerProfession.FARMER)) farmers.add(villager);
         }
-        farmers.sort(Comparator.comparingDouble(client.player::distanceTo));
+        farmers.sort(Comparator.comparingDouble(v -> reachDistance(client, v)));
         AutomationManager.INSTANCE.setVillagerCount(farmers.size());
         chat(client, "=== Çiftçi taraması: " + villagers + " köylü, " + farmers.size() + " çiftçi ===");
         int rank = 0;
         for (Villager villager : farmers) {
             rank++;
-            double distance = client.player.distanceTo(villager);
+            double distance = reachDistance(client, villager);
             String distanceText = String.format(java.util.Locale.ROOT, "%.1f", distance);
             if (distance > interactionRange) {
                 chat(client, rank + ". çiftçi, " + distanceText + " blok: MENZİL DIŞI");
@@ -228,7 +234,7 @@ public final class DiagnosticController {
 
     private static boolean isAccessible(Minecraft client, Villager villager) {
         return villager.isAlive()
-                && client.player.distanceTo(villager) <= client.player.entityInteractionRange()
+                && reachDistance(client, villager) <= client.player.entityInteractionRange()
                 && hasLineOfSight(client, villager);
     }
 
@@ -265,6 +271,43 @@ public final class DiagnosticController {
             chat(client, line.toString());
         }
         if (!foundCarrotTrade) chat(client, "Bu çiftçide havuç -> zümrüt teklifi yok.");
+    }
+
+    /** Göz konumundan köylünün çarpışma kutusuna en kısa mesafe (etkileşim menzili bu şekilde ölçülür). */
+    private static double reachDistance(Minecraft client, Villager villager) {
+        Vec3 eye = client.player.getEyePosition();
+        AABB box = villager.getBoundingBox();
+        double dx = Math.max(Math.max(box.minX - eye.x, 0.0), eye.x - box.maxX);
+        double dy = Math.max(Math.max(box.minY - eye.y, 0.0), eye.y - box.maxY);
+        double dz = Math.max(Math.max(box.minZ - eye.z, 0.0), eye.z - box.maxZ);
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    // ShopController'a dokunmamak için aynı tıklama yöntemi burada kopya olarak tutulur.
+    private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
+        int containerRows = Math.max(0, (screen.getMenu().slots.size() - 36) / 9);
+        int imageWidth = 176;
+        int imageHeight = 114 + containerRows * 18;
+        double leftPos = (screen.width - imageWidth) / 2.0;
+        double topPos = (screen.height - imageHeight) / 2.0;
+        double guiX = leftPos + slot.x + 8;
+        double guiY = topPos + slot.y + 8;
+        MouseButtonInfo left = new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0);
+        MouseButtonEvent event = new MouseButtonEvent(guiX, guiY, left);
+        screen.mouseMoved(guiX, guiY);
+        screen.mouseClicked(event, false);
+        screen.mouseReleased(event);
+    }
+
+    private static Slot findSlotByItem(AbstractContainerScreen<?> screen, Item item) {
+        var menu = screen.getMenu();
+        int shopSlots = Math.max(0, menu.slots.size() - 36);
+        for (int index = 0; index < shopSlots; index++) {
+            Slot slot = menu.slots.get(index);
+            ItemStack stack = slot.getItem();
+            if (!stack.isEmpty() && stack.is(item)) return slot;
+        }
+        return null;
     }
 
     private boolean fail(Minecraft client, String message) {

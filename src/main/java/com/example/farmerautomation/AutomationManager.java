@@ -207,7 +207,9 @@ public final class AutomationManager {
     }
 
     private void handleDiagnostic(Minecraft client) {
-        if (diagnosticController.tick(client)) complete();
+        boolean finished = diagnosticController.tick(client);
+        // Hata durumunda fail() ERROR yaptı; COMPLETED ile ezme.
+        if (finished && getState() == AutomationState.DIAGNOSTIC) complete();
     }
 
     private void handleScanningVillagers(Minecraft client) { }
