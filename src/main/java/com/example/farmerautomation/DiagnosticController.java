@@ -7,8 +7,8 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.entity.npc.villager.VillagerProfession;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -251,8 +251,7 @@ public final class DiagnosticController {
 
                         villagerTotal++;
 
-                        // 1.21.11'de meslekler kayıt tabanlı: profession() Holder döner.
-                        if (villager.getVillagerData().profession().is(VillagerProfession.FARMER)) {
+                        if (villager.getVillagerData().profession() == VillagerProfession.FARMER) {
                             farmers.add(villager);
                         }
                     }
@@ -351,7 +350,7 @@ public final class DiagnosticController {
                         return false;
                     }
 
-                    MerchantMenu menu = (MerchantMenu) merchantScreen.getMenu();
+                    MerchantMenu menu = merchantScreen.getMenu();
 
                     if (!menu.getOffers().isEmpty()) {
                         readOffers(client, menu);
