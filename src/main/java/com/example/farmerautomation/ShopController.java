@@ -266,7 +266,7 @@ public final class ShopController {
         step = Step.CLOSE_MENU;
     }
 
-    public static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
+    private static void clickSlot(AbstractContainerScreen<?> screen, Slot slot) {
         int containerRows = Math.max(0, (screen.getMenu().slots.size() - 36) / 9);
         int imageWidth = 176;
         int imageHeight = 114 + containerRows * 18;
@@ -285,7 +285,7 @@ public final class ShopController {
         screen.mouseReleased(event);
     }
 
-    public static Slot findSlotByItem(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
+    private static Slot findSlotByItem(AbstractContainerScreen<?> screen, net.minecraft.world.item.Item item) {
         var menu = screen.getMenu();
 
         int shopSlots = Math.max(0, menu.slots.size() - 36);

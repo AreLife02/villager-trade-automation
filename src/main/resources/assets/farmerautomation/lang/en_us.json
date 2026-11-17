@@ -5,6 +5,5 @@
   "screen.farmerautomation.start": "Start",
   "screen.farmerautomation.pause": "Pause",
   "screen.farmerautomation.resume": "Resume",
-  "screen.farmerautomation.stop": "Stop",
-  "screen.farmerautomation.cycle": "Cycle"
+  "screen.farmerautomation.stop": "Stop"
 }

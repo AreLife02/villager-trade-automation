@@ -5,6 +5,5 @@
   "screen.farmerautomation.start": "Başlat",
   "screen.farmerautomation.pause": "Duraklat",
   "screen.farmerautomation.resume": "Devam",
-  "screen.farmerautomation.stop": "Durdur",
-  "screen.farmerautomation.cycle": "Döngü"
+  "screen.farmerautomation.stop": "Durdur"
 }
