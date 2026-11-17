@@ -8,6 +8,7 @@ public final class AutomationManager {
 
     private final ShopController shopController = new ShopController();
     private final DiagnosticController diagnosticController = new DiagnosticController();
+    private final CycleController cycleController = new CycleController();
 
     private AutomationState state = AutomationState.IDLE;
     private AutomationState stateBeforePause = AutomationState.IDLE;
@@ -45,15 +46,27 @@ public final class AutomationManager {
     }
 
     /** Aşama A: yalnızca tanılama; satın alma ve takas yapılmaz. */
-    public synchronized void startCycle() {
-        if (!canStart("Döngü")) return;
+    public synchronized void startDiagnostic() {
+        if (!canStart("Teşhis")) return;
 
         running = true;
         state = AutomationState.DIAGNOSTIC;
         stateBeforePause = AutomationState.DIAGNOSTIC;
         currentVillagerIndex = -1;
         diagnosticController.reset();
-        ErrorHandler.info("Döngü teşhisi başlatıldı. Satın alma ve takas yapılmayacak.");
+        ErrorHandler.info("Teşhis başlatıldı. Satın alma ve takas yapılmayacak.");
+    }
+
+    /** Döngü: köylü takası (aşamalara göre genişler). */
+    public synchronized void startCycle() {
+        if (!canStart("Döngü")) return;
+
+        running = true;
+        state = AutomationState.CYCLE;
+        stateBeforePause = AutomationState.CYCLE;
+        currentVillagerIndex = -1;
+        cycleController.reset();
+        ErrorHandler.info("Döngü başlatıldı.");
     }
 
     private boolean canStart(String label) {
@@ -105,6 +118,7 @@ public final class AutomationManager {
         currentVillagerIndex = -1;
         shopController.reset();
         diagnosticController.reset();
+        cycleController.reset();
         closeOpenContainer();
         ErrorHandler.info("Otomasyon durduruldu; açık menü kapatıldı.");
     }
@@ -163,6 +177,7 @@ public final class AutomationManager {
                 case OPENING_SHOP -> handleOpeningShop(client);
                 case BUYING_CARROTS -> handleBuyingCarrots(client);
                 case DIAGNOSTIC -> handleDiagnostic(client);
+                case CYCLE -> handleCycle(client);
                 case SCANNING_VILLAGERS -> handleScanningVillagers(client);
                 case SELECTING_VILLAGER -> handleSelectingVillager(client);
                 case NAVIGATING -> handleNavigating(client);
@@ -210,6 +225,11 @@ public final class AutomationManager {
         boolean finished = diagnosticController.tick(client);
         // Hata durumunda fail() ERROR yaptı; COMPLETED ile ezme.
         if (finished && getState() == AutomationState.DIAGNOSTIC) complete();
+    }
+
+    private void handleCycle(Minecraft client) {
+        boolean finished = cycleController.tick(client);
+        if (finished && getState() == AutomationState.CYCLE) complete();
     }
 
     private void handleScanningVillagers(Minecraft client) { }

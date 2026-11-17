@@ -13,6 +13,7 @@ public enum AutomationState {
     STORING_ITEMS,
     SWITCHING_VILLAGER,
     DIAGNOSTIC,
+    CYCLE,
     PAUSED,
     ERROR,
     COMPLETED

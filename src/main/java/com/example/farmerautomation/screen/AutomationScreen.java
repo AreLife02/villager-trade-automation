@@ -49,9 +49,15 @@ public final class AutomationScreen extends Screen {
         y += 25;
 
         this.addRenderableWidget(Button.builder(
+                        Component.translatable("screen.farmerautomation.diagnostic"),
+                        button -> manager.startDiagnostic())
+                .bounds(centerX - 105, y, 100, 20)
+                .build());
+
+        this.addRenderableWidget(Button.builder(
                         Component.translatable("screen.farmerautomation.stop"),
                         button -> manager.stop())
-                .bounds(centerX - 50, y, 100, 20)
+                .bounds(centerX + 5, y, 100, 20)
                 .build());
     }
 
