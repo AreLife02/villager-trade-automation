@@ -18,6 +18,7 @@ public final class AutomationManager {
     private AutomationState state = AutomationState.IDLE;
     private AutomationState stateBeforePause = AutomationState.IDLE;
     private boolean running = false;
+    private Mode mode = Mode.NONE;
 
     private int currentVillagerIndex = -1;
     private int villagerCount = 0;
