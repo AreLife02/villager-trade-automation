@@ -547,10 +547,25 @@ public final class CycleController {
     private void villagerDone(Minecraft client, String reason) {
         if (current != null) exhausted.add(current.getUUID());
         chat(client, "Çiftçi " + (farmerIndex + 1) + " bitti (" + reason + "); " + villagerTrades + " takas yapıldı.");
-        afterClose = Step.STORE;
+
+        // Depolamaya her köylüden sonra gitme. Yalnızca envanter neredeyse
+        // dolduğunda, köylü menüsü kapandıktan sonra zümrütleri boşalt.
+        afterClose = shouldStoreEmeralds(client) ? Step.STORE : Step.NEXT_VILLAGER;
         afterStore = Step.NEXT_VILLAGER;
         storage.reset();
         step = Step.CLOSE;
+    }
+
+    private static boolean shouldStoreEmeralds(Minecraft client) {
+        AutomationConfig config = AutomationConfig.get();
+        if (!config.storageEnabled || InventoryManager.countEmeralds(client) <= 0) return false;
+
+        int emptySlots = 0;
+        for (int i = 0; i < 36; i++) {
+            if (client.player.getInventory().getItem(i).isEmpty()) emptySlots++;
+        }
+        // İki veya daha az boş slot kaldığında depolamayı tetikle.
+        return emptySlots <= 2;
     }
 
     private void notEnoughCarrots(Minecraft client, int carrots) {
