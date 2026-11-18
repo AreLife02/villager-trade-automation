@@ -18,6 +18,25 @@ public final class FarmerScanner {
     private FarmerScanner() {
     }
 
+    /** Tarama yarıçapındaki tüm canlı çiftçileri en yakından uzağa listeler. */
+    public static List<Villager> scanFarmers(Minecraft client) {
+        List<Villager> result = new ArrayList<>();
+        if (client == null || client.player == null || client.level == null) return result;
+
+        double radius = Math.max(0, AutomationConfig.get().villagerSearchRadius);
+        for (Entity entity : client.level.getEntities(
+                client.player, client.player.getBoundingBox().inflate(radius))) {
+            if (entity instanceof Villager villager
+                    && villager.isAlive()
+                    && villager.getVillagerData().profession().is(VillagerProfession.FARMER)) {
+                result.add(villager);
+            }
+        }
+
+        result.sort(Comparator.comparingDouble(v -> reachDistance(client, v)));
+        return result;
+    }
+
     public static List<Villager> scanAccessible(Minecraft client) {
         List<Villager> result = new ArrayList<>();
         double radius = Math.max(0, AutomationConfig.get().villagerSearchRadius);
