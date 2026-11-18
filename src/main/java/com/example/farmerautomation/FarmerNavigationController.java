@@ -115,6 +115,26 @@ public final class FarmerNavigationController {
         return false;
     }
 
+    public void pause() {
+        if (step == Step.NAVIGATE) {
+            baritone.stop();
+            info("Navigasyon duraklatıldı.");
+        }
+    }
+
+    public boolean resume() {
+        if (step != Step.NAVIGATE || target == null) return true;
+        if (!target.isAlive()) {
+            return fail("Duraklatma sırasında seçilen çiftçi artık mevcut değil.");
+        }
+        if (!baritone.start(target.blockPosition())) {
+            return fail("Navigasyon devam ettirilemedi. Ayrıntı: " + baritone.getLastError());
+        }
+        idleTicks = 0;
+        info("Köylüye giden yol yeniden başlatıldı.");
+        return true;
+    }
+
     public void stop() {
         baritone.stop();
         target = null;
