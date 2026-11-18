@@ -25,6 +25,8 @@ public final class AutomationConfig {
     public int actionTimeoutTicks = 100;
     /** İki takas seçimi arası en az tick (20 tick = 1 sn). 2 = 0,1 sn. */
     public int tradeIntervalTicks = 2;
+    /** Köylüye ulaşıldığında takas ekranı açılsın mı? */
+    public boolean openTradeScreenAfterNavigation = false;
 
     private static AutomationConfig instance;
 
