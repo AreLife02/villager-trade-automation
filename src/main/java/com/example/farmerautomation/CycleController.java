@@ -223,7 +223,8 @@ public final class CycleController {
                     if (!(client.screen instanceof MerchantScreen screen)) {
                         return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
                     }
-                    int carrots = InventoryManager.countCarrots(client);
+                    // Takas menüsü ödeme slotuna havuçları bir stack'e kadar taşır; bunları da say.
+                    int carrots = carrotsTotal(client, screen.getMenu());
                     if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
                         villagerDone(client, "güvenlik sınırı (" + MAX_TRADES_PER_VILLAGER + " takas) doldu");
                         return false;
@@ -310,7 +311,10 @@ public final class CycleController {
                     }
                 }
                 case VERIFY_TRADE -> {
-                    int carrots = InventoryManager.countCarrots(client);
+                    if (!(client.screen instanceof MerchantScreen verifyScreen)) {
+                        return fail(client, "Takas menüsü doğrulama sırasında kapandı.");
+                    }
+                    int carrots = carrotsTotal(client, verifyScreen.getMenu());
                     int emeralds = InventoryManager.countEmeralds(client);
                     boolean carrotsOk = carrots == carrotsBefore - cost;
                     boolean emeraldsOk = emeralds == emeraldsBefore + resultCount;
@@ -411,6 +415,16 @@ public final class CycleController {
         step = Step.CLOSE;
     }
 
+    /** Envanterdeki havuç + açık takas menüsünün ödeme slotlarındaki havuç. */
+    private static int carrotsTotal(Minecraft client, MerchantMenu menu) {
+        int total = InventoryManager.countCarrots(client);
+        for (int slot = 0; slot <= 1; slot++) {
+            ItemStack stack = menu.getSlot(slot).getItem();
+            if (stack.is(Items.CARROT)) total += stack.getCount();
+        }
+        return total;
+    }
+
     private void sendSelect(Minecraft client, MerchantMenu menu) {
         menu.setSelectionHint(offerIndex);
         menu.tryMoveItems(offerIndex);
@@ -419,7 +433,7 @@ public final class CycleController {
 
     private String diagnoseNoResult(Minecraft client, MerchantMenu menu) {
         ItemStack payment = menu.getSlot(PAYMENT_SLOT_A).getItem();
-        int carrots = InventoryManager.countCarrots(client);
+        int carrots = carrotsTotal(client, menu);
 
         if (payment.is(Items.CARROT) && payment.getCount() >= cost) {
             return null; // havuç yerleşti ama sonuç yok: stok bitti / kilitli
