@@ -230,7 +230,7 @@ public final class CycleController {
                     if (!(client.screen instanceof MerchantScreen screen)) {
                         return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
                     }
-                    // Takas hızı: iki seçim arasında en az tradeIntervalTicks tick (varsayılan 10 = 0,5 sn).
+                    // Takas hızı: iki seçim arasında en az tradeIntervalTicks tick (varsayılan 2 = 0,1 sn).
                     if (lastSelectTick >= 0
                             && tickCounter - lastSelectTick < Math.max(1, AutomationConfig.get().tradeIntervalTicks)) {
                         return false;

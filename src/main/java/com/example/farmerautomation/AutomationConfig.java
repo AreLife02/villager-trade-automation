@@ -23,8 +23,8 @@ public final class AutomationConfig {
     public int villagerSearchRadius = 32;
     public int navigationTimeoutTicks = 600;
     public int actionTimeoutTicks = 100;
-    /** İki takas seçimi arası en az tick (20 tick = 1 sn). 10 = 0,5 sn. */
-    public int tradeIntervalTicks = 10;
+    /** İki takas seçimi arası en az tick (20 tick = 1 sn). 2 = 0,1 sn. */
+    public int tradeIntervalTicks = 2;
 
     private static AutomationConfig instance;
 
