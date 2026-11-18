@@ -59,7 +59,7 @@ public final class StorageTypesScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        // Screen.render already draws the background; a second blur crashes on 1.21.11.
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 20, 0xFFFFFF);
         graphics.drawCenteredString(font, Component.literal("Seçilen kutulara yalnızca zümrüt aktarılır"),
