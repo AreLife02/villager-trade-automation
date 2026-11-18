@@ -21,13 +21,6 @@ public final class AutomationSettingsScreen extends Screen {
         int center = width / 2;
         int y = 55;
 
-        addRenderableWidget(Button.builder(cycleLabel(config), b -> {
-            config.unlimitedCycle = !config.unlimitedCycle;
-            config.save();
-            b.setMessage(cycleLabel(config));
-        }).bounds(center - 110, y, 220, 20).build());
-
-        y += 27;
         addRenderableWidget(Button.builder(Component.literal("Tarama mesafesi: −16"),
                 b -> changeRadius(-16)).bounds(center - 110, y, 105, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Tarama mesafesi: +16"),
@@ -37,19 +30,14 @@ public final class AutomationSettingsScreen extends Screen {
         addRenderableWidget(Button.builder(radiusLabel(config), b -> { }).bounds(center - 110, y, 220, 20).build());
 
         y += 30;
-        addRenderableWidget(Button.builder(storageLabel(config), b -> {
-            config.storageEnabled = !config.storageEnabled;
-            config.save();
-            Minecraft.getInstance().setScreen(new AutomationSettingsScreen(parent));
-        }).bounds(center - 110, y, 220, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Depo arama mesafesi: −1"),
+                b -> changeStorageRadius(-1)).bounds(center - 110, y, 105, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Depo arama mesafesi: +1"),
+                b -> changeStorageRadius(1)).bounds(center + 5, y, 105, 20).build());
 
-        if (config.storageEnabled) {
-            y += 25;
-            addRenderableWidget(Button.builder(Component.literal("Depolama türlerini seç"),
-                    b -> Minecraft.getInstance().setScreen(new StorageTypesScreen(this)))
-                    .bounds(center - 110, y, 220, 20).build());
-            y += 25;
-        }
+        y += 25;
+        addRenderableWidget(Button.builder(storageRadiusLabel(config), b -> { })
+                .bounds(center - 110, y, 220, 20).build());
 
         y += 35;
         addRenderableWidget(Button.builder(Component.literal("Geri"),
@@ -64,14 +52,18 @@ public final class AutomationSettingsScreen extends Screen {
         Minecraft.getInstance().setScreen(new AutomationSettingsScreen(parent));
     }
 
-    private static Component cycleLabel(AutomationConfig c) {
-        return Component.literal("Döngü: " + (c.unlimitedCycle ? "Sınırsız" : "Tek tur"));
+    private void changeStorageRadius(int delta) {
+        AutomationConfig config = AutomationConfig.get();
+        config.storageSearchRadius = Math.max(1, Math.min(32, config.storageSearchRadius + delta));
+        config.save();
+        Minecraft.getInstance().setScreen(new AutomationSettingsScreen(parent));
     }
+
     private static Component radiusLabel(AutomationConfig c) {
-        return Component.literal("Mevcut tarama mesafesi: " + c.villagerSearchRadius + " blok");
+        return Component.literal("Mevcut köylü tarama mesafesi: " + c.villagerSearchRadius + " blok");
     }
-    private static Component storageLabel(AutomationConfig c) {
-        return Component.literal("Depolama kullan: " + (c.storageEnabled ? "Açık" : "Kapalı"));
+    private static Component storageRadiusLabel(AutomationConfig c) {
+        return Component.literal("Mevcut depo arama mesafesi: " + c.storageSearchRadius + " blok");
     }
 
     @Override
