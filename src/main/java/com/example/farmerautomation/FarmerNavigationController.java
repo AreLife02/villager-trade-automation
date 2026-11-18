@@ -89,7 +89,7 @@ public final class FarmerNavigationController {
                     BaritoneNavigation.PathStatus status = baritone.getPathStatus();
                     if (status == BaritoneNavigation.PathStatus.ACTIVE) {
                         idleTicks = 0;
-                    } else if (++idleTicks > 40) {
+                    } else if (++idleTicks > 100) {
                         return fail("Baritone geçerli bir yol bulamadı veya yol hedefe ulaşmadan sona erdi.");
                     }
                 }
