@@ -1,5 +1,6 @@
 package com.example.farmerautomation.screen;
 
+import com.example.farmerautomation.AutomationConfig;
 import com.example.farmerautomation.AutomationManager;
 import com.example.farmerautomation.AutomationState;
 import com.example.farmerautomation.ErrorHandler;
@@ -38,6 +39,28 @@ public final class AutomationScreen extends Screen {
         this.addRenderableWidget(Button.builder(Component.literal("Ayarlar"),
                 button -> Minecraft.getInstance().setScreen(new AutomationSettingsScreen(this)))
                 .bounds(centerX - 75, y, 150, 20).build());
+
+        AutomationConfig config = AutomationConfig.get();
+        y += 27;
+        this.addRenderableWidget(Button.builder(unlimitedLabel(config), button -> {
+            config.unlimitedCycle = !config.unlimitedCycle;
+            config.save();
+            button.setMessage(unlimitedLabel(config));
+        }).bounds(centerX - 110, y, 220, 20).build());
+
+        y += 25;
+        this.addRenderableWidget(Button.builder(storageLabel(config), button -> {
+            config.storageEnabled = !config.storageEnabled;
+            config.save();
+            Minecraft.getInstance().setScreen(new AutomationScreen());
+        }).bounds(centerX - 110, y, 220, 20).build());
+
+        if (config.storageEnabled) {
+            y += 25;
+            this.addRenderableWidget(Button.builder(Component.literal("Depolama türlerini seç"),
+                    button -> Minecraft.getInstance().setScreen(new StorageTypesScreen(this)))
+                    .bounds(centerX - 110, y, 220, 20).build());
+        }
     }
 
     @Override
@@ -49,7 +72,7 @@ public final class AutomationScreen extends Screen {
         graphics.drawCenteredString(this.font, Component.literal("Durum: " + state.name()),
                 this.width / 2, 30, 0xFFFF55);
 
-        int y = 145;
+        int y = 225;
         y = drawInfo(graphics, y, "Çalışıyor: " + (manager.isRunning() ? "Evet" : "Hayır"));
         y = drawInfo(graphics, y, "Bulunan köylü: " + manager.getVillagerCount());
         y = drawInfo(graphics, y, "Aktif köylü: " + activeVillagerText());
@@ -58,6 +81,14 @@ public final class AutomationScreen extends Screen {
         y = drawInfo(graphics, y, "Shulker doluluk: " + shulkerText());
         y = drawInfo(graphics, y, "Son bilgi: " + ErrorHandler.getLastInfo());
         drawInfo(graphics, y + 5, "Son hata: " + ErrorHandler.getLastError());
+    }
+
+    private static Component unlimitedLabel(AutomationConfig config) {
+        return Component.literal("Sınırsız döngü: " + (config.unlimitedCycle ? "Açık" : "Kapalı"));
+    }
+
+    private static Component storageLabel(AutomationConfig config) {
+        return Component.literal("Depolamayı aç: " + (config.storageEnabled ? "Açık" : "Kapalı"));
     }
 
     private int drawInfo(GuiGraphics graphics, int y, String text) {
