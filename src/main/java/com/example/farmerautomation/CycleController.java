@@ -243,16 +243,9 @@ public final class CycleController {
 
                     if (client.hitResult instanceof EntityHitResult entityHit
                             && entityHit.getEntity() == current) {
-                        // Havuç ana eldeyken MAIN_HAND kullanmak etkileşimi eşya etkileşimi
-                        // olarak gönderebilir. Köylü takası için boş eli tercih et.
-                        InteractionHand interactionHand;
-                        if (client.player.getMainHandItem().isEmpty()) {
-                            interactionHand = InteractionHand.MAIN_HAND;
-                        } else if (client.player.getOffhandItem().isEmpty()) {
-                            interactionHand = InteractionHand.OFF_HAND;
-                        } else {
-                            return fail(client, "Köylüyle konuşmak için iki elden en az biri boş olmalı.");
-                        }
+                        // Vanilla sağ tık varsayılan olarak ana eli kullanır. Havuç elde olsa da
+                        // köylü etkileşimini boş yan ele kaydırma; aynı el davranışını uygula.
+                        InteractionHand interactionHand = InteractionHand.MAIN_HAND;
                         InteractionResult interaction = client.gameMode.interact(
                                 client.player, current, interactionHand);
                         lastInteraction = interactionHand + " / " + interaction
@@ -260,7 +253,7 @@ public final class CycleController {
                                 + " / yanEl=" + client.player.getOffhandItem().getItem();
                         chat(client, "Nişangâh doğrulandı: hedef çiftçi, mesafe "
                                 + String.format(java.util.Locale.ROOT, "%.2f", client.player.distanceTo(current))
-                                + " blok. Boş el ile etkileşim gönderildi: " + lastInteraction);
+                                + " blok. Ana el ile etkileşim gönderildi: " + lastInteraction);
                         ticks = 0;
                         step = Step.WAIT_SCREEN;
                         return false;
