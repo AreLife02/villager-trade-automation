@@ -138,6 +138,12 @@ public final class LocalNavigation {
         return lastError;
     }
 
+    private Status fail(String message) {
+        lastError = message;
+        releaseKeys(Minecraft.getInstance());
+        return Status.FAILED;
+    }
+
     /** Oyuncu kamerasını doğrudan hedef köylünün yüzüne çevirir. */
     public static void faceEntity(Minecraft client, Villager villager) {
         if (client == null || client.player == null || villager == null) return;
