@@ -3,7 +3,6 @@ package com.example.farmerautomation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundSelectTradePacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -13,7 +12,6 @@ import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
-import net.minecraft.world.phys.EntityHitResult;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -22,10 +20,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Havuç -> zümrüt takas döngüsü (Aşama B-D).
- * Shift-tıklama kullanılmaz; her takas sonucu tek tıklamayla alınıp envantere yerleştirilir ve doğrulanır.
- * Bir köylünün stoğu bitene kadar takas yapılır, sonra sıradaki erişilebilir çiftçiye geçilir.
- * Havuç bir sonraki takasa yetmeyince Shop'a dönülür, tamamlanır ve AYNI köylüyle devam edilir.
+ * Havuç -> zümrüt takas döngüsü.
+ * Yol bulma LocalNavigation ile yapılır; takas adımları ve envanter doğrulaması korunur.
  */
 public final class CycleController {
     private static final int SCREEN_TIMEOUT = 60;
@@ -72,17 +68,13 @@ public final class CycleController {
     private long lastSelectTick = -1;
 
     private final RefillController refill = new RefillController();
-    private final BaritoneNavigation baritone = new BaritoneNavigation();
-    private int navigationTicks;
-    private int navigationIdleTicks;
+    private final LocalNavigation navigation = new LocalNavigation();
 
     /** Stoğu bitmiş / uygun takası olmayan köylüler. Shop gidiş-gelişiyle silinmez; yalnızca reset()'te sıfırlanır. */
     private final Set<UUID> exhausted = new HashSet<>();
 
     public void reset() {
-        baritone.stop();
-        navigationTicks = 0;
-        navigationIdleTicks = 0;
+        navigation.stop();
         step = Step.START;
         ticks = 0;
         selectRetries = 0;
@@ -107,26 +99,24 @@ public final class CycleController {
         lastSelectTick = -1;
     }
 
-    /** true: iş bitti (başarılı ya da fail çağrıldı). Çağıran durumu kontrol eder. */
     public void pause() {
         if (step == Step.NAVIGATE) {
-            baritone.stop();
+            navigation.stop();
             chat(Minecraft.getInstance(), "Yol bulma duraklatıldı.");
         }
     }
 
-    public boolean resume() {
+    public boolean resume(Minecraft client) {
         if (step != Step.NAVIGATE) return true;
         if (current == null || !current.isAlive()) {
             AutomationManager.INSTANCE.fail("Devam edilemedi: seçilen çiftçi artık mevcut değil.");
             return false;
         }
-        if (!baritone.start(current.blockPosition())) {
-            AutomationManager.INSTANCE.fail("Yol bulma devam ettirilemedi: " + baritone.getLastError());
+        if (!navigation.start(client, current)) {
+            AutomationManager.INSTANCE.fail("Yol bulma devam ettirilemedi: " + navigation.getLastError());
             return false;
         }
-        navigationIdleTicks = 0;
-        chat(Minecraft.getInstance(), "Köylüye giden yol yeniden başlatıldı.");
+        chat(client, "Köylüye giden rota yeniden hesaplandı.");
         return true;
     }
 
@@ -134,7 +124,6 @@ public final class CycleController {
         if (client == null || client.player == null || client.level == null || client.gameMode == null) {
             return step == Step.DONE;
         }
-
         if (step == Step.DONE) return true;
 
         tickCounter++;
@@ -146,7 +135,6 @@ public final class CycleController {
                         return fail(client, "Başlangıçta açık bir konteyner menüsü var.");
                     }
                     if (InventoryManager.countCarrots(client) < RefillController.TARGET_CARROTS) {
-                        // Önce Shop'tan en az 768 havuca tamamla (64'lük alımlarla yukarı yuvarlanır).
                         refill.reset();
                         afterRefill = Step.SCAN;
                         step = Step.REFILL;
@@ -176,7 +164,6 @@ public final class CycleController {
                         step = Step.SCAN;
                         return false;
                     }
-                    // Aynı köylüyle devam: havuç takasa yetiyor mu?
                     if (carrots < cost) {
                         return fail(client, "Shop alımından sonra bile havuç yetmiyor: " + carrots + " var, takas "
                                 + cost + " istiyor.");
@@ -187,11 +174,9 @@ public final class CycleController {
                     farmers.clear();
                     farmers.addAll(FarmerScanner.scanFarmers(client));
                     AutomationManager.INSTANCE.setVillagerCount(farmers.size());
-                    if (farmers.isEmpty()) {
-                        return fail(client, "Tarama alanında canlı çiftçi bulunamadı.");
-                    }
+                    if (farmers.isEmpty()) return fail(client, "Tarama alanında canlı çiftçi bulunamadı.");
                     farmerIndex = -1;
-                    chat(client, farmers.size() + " çiftçi bulundu (en yakından uzağa); köylülere yol bulunarak gidilecek.");
+                    chat(client, farmers.size() + " çiftçi bulundu (en yakından uzağa); bağımsız yol bulma kullanılacak.");
                     step = Step.NEXT_VILLAGER;
                 }
                 case NEXT_VILLAGER -> {
@@ -211,33 +196,25 @@ public final class CycleController {
                     if (FarmerScanner.isAccessible(client, current)) {
                         step = Step.INTERACT;
                     } else {
-                        if (!baritone.start(current.blockPosition())) {
-                            return fail(client, "Çiftçiye yol başlatılamadı. Baritone hatası: " + baritone.getLastError());
+                        if (!navigation.start(client, current)) {
+                            return fail(client, "Çiftçiye güvenli yol başlatılamadı: " + navigation.getLastError());
                         }
-                        navigationTicks = 0;
-                        navigationIdleTicks = 0;
                         step = Step.NAVIGATE;
-                        chat(client, "Çiftçiye Baritone ile yol bulunuyor. Blok kırma/yerleştirme kapalı.");
+                        chat(client, "Köylüye bağımsız yol bulma ile gidiliyor. Blok kırma/yerleştirme kapalı.");
                     }
                 }
                 case NAVIGATE -> {
                     if (current == null || !current.isAlive()) {
                         return fail(client, "Yol bulunurken seçilen çiftçi artık mevcut değil.");
                     }
-                    if (FarmerScanner.isAccessible(client, current)) {
-                        baritone.stop();
-                        chat(client, "Köylüye ulaşıldı; takas ekranı açılıyor.");
+                    LocalNavigation.Status status = navigation.tick(client, current);
+                    if (status == LocalNavigation.Status.REACHED) {
+                        chat(client, "Köylüye ulaşıldı; kamera yüzüne çevrildi, takas ekranı açılıyor.");
                         step = Step.INTERACT;
                         return false;
                     }
-                    if (++navigationTicks > Math.max(40, AutomationConfig.get().navigationTimeoutTicks)) {
-                        return fail(client, "Köylüye ulaşmak için ayrılan süre doldu.");
-                    }
-                    BaritoneNavigation.PathStatus pathStatus = baritone.getPathStatus();
-                    if (pathStatus == BaritoneNavigation.PathStatus.ACTIVE) {
-                        navigationIdleTicks = 0;
-                    } else if (++navigationIdleTicks > 100) {
-                        return fail(client, "Baritone köylüye ulaşan bir yol bulamadı. Güvenlik için otomasyon durduruldu.");
+                    if (status == LocalNavigation.Status.FAILED) {
+                        return fail(client, "Köylüye ulaşılamadı: " + navigation.getLastError());
                     }
                 }
                 case INTERACT -> {
@@ -248,14 +225,9 @@ public final class CycleController {
                         return false;
                     }
                     lastSelectTick = -1;
-                    // Vanilla sırası: önce interactAt (bakılan noktayla), tüketilmezse interact.
-                    InteractionResult interaction = null;
-                    if (client.hitResult instanceof EntityHitResult entityHit && entityHit.getEntity() == current) {
-                        interaction = client.gameMode.interactAt(client.player, current, entityHit, InteractionHand.MAIN_HAND);
-                    }
-                    if (interaction == null || !interaction.consumesAction()) {
-                        interaction = client.gameMode.interact(client.player, current, InteractionHand.MAIN_HAND);
-                    }
+                    LocalNavigation.faceEntity(client, current);
+                    InteractionResult interaction = client.gameMode.interact(
+                            client.player, current, InteractionHand.MAIN_HAND);
                     lastInteraction = String.valueOf(interaction);
                     ticks = 0;
                     step = Step.WAIT_SCREEN;
@@ -288,12 +260,10 @@ public final class CycleController {
                     if (!(client.screen instanceof MerchantScreen screen)) {
                         return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
                     }
-                    // Takas hızı: iki seçim arasında en az tradeIntervalTicks tick (varsayılan 2 = 0,1 sn).
                     if (lastSelectTick >= 0
                             && tickCounter - lastSelectTick < Math.max(1, AutomationConfig.get().tradeIntervalTicks)) {
                         return false;
                     }
-                    // Takas menüsü ödeme slotuna havuçları bir stack'e kadar taşır; bunları da say.
                     int carrots = carrotsTotal(client, screen.getMenu());
                     if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
                         villagerDone(client, "güvenlik sınırı (" + MAX_TRADES_PER_VILLAGER + " takas) doldu");
@@ -318,7 +288,6 @@ public final class CycleController {
                     MerchantMenu menu = screen.getMenu();
                     ItemStack result = menu.getSlot(RESULT_SLOT).getItem();
                     ticks++;
-                    // Sunucu yanıtı gelsin diye en az 1 tick bekle, sonra sonucu al.
                     if (ticks >= 1 && !result.isEmpty() && result.is(Items.EMERALD) && result.getCount() == resultCount) {
                         step = Step.TAKE_RESULT;
                         return false;
@@ -342,15 +311,11 @@ public final class CycleController {
                     }
                     MerchantMenu menu = screen.getMenu();
                     targetSlot = findPlaceSlot(menu);
-                    if (targetSlot < 0) {
-                        return fail(client, "Envanterde zümrüt için yer yok; takas sonucu alınmadı.");
-                    }
-                    // Tek normal tıklama: sonucu imlece al (Shift-tıklama yok).
+                    if (targetSlot < 0) return fail(client, "Envanterde zümrüt için yer yok; takas sonucu alınmadı.");
                     client.gameMode.handleInventoryMouseClick(menu.containerId, RESULT_SLOT, 0, ClickType.PICKUP, client.player);
                     ticks = 0;
                     ItemStack carriedNow = menu.getCarried();
                     if (!carriedNow.isEmpty() && carriedNow.is(Items.EMERALD)) {
-                        // İstemci tahmini imleçte zümrütü hemen gösterdi: aynı tick'te envantere yerleştir.
                         client.gameMode.handleInventoryMouseClick(menu.containerId, targetSlot, 0, ClickType.PICKUP, client.player);
                         step = Step.WAIT_PLACE;
                     } else {
@@ -385,7 +350,7 @@ public final class CycleController {
                         ticks = 0;
                         step = Step.VERIFY_TRADE;
                     } else if (++ticks > CLICK_TIMEOUT) {
-                        return fail(client, "Zümrüt envantere yerleştirilemedi (imlecte kaldı).");
+                        return fail(client, "Zümrüt envantere yerleştirilemedi (imleçte kaldı).");
                     }
                 }
                 case VERIFY_TRADE -> {
@@ -412,9 +377,7 @@ public final class CycleController {
                     }
                 }
                 case CLOSE -> {
-                    if (client.screen instanceof AbstractContainerScreen<?>) {
-                        client.player.closeContainer();
-                    }
+                    if (client.screen instanceof AbstractContainerScreen<?>) client.player.closeContainer();
                     ticks = 0;
                     step = Step.WAIT_CLOSE;
                 }
@@ -432,9 +395,7 @@ public final class CycleController {
                     step = Step.DONE;
                     return true;
                 }
-                case DONE -> {
-                    return true;
-                }
+                case DONE -> { return true; }
             }
         } catch (Exception exception) {
             return fail(client, "Döngü hatası: " + exception.getClass().getSimpleName());
@@ -443,7 +404,6 @@ public final class CycleController {
         return step == Step.DONE;
     }
 
-    /** Teklif listesinde havuç -> zümrüt takasını bulur. Bulunamazsa fail eder ve false döner. */
     private boolean locateOffer(Minecraft client, MerchantMenu menu) {
         int index = 0;
         for (MerchantOffer offer : menu.getOffers()) {
@@ -464,12 +424,10 @@ public final class CycleController {
             }
             index++;
         }
-
         villagerDone(client, "havuç -> zümrüt takası yok");
         return false;
     }
 
-    /** Bu köylü bu turda bitti: kaydet, menüyü kapat, sıradakine geç. */
     private void villagerDone(Minecraft client, String reason) {
         if (current != null) exhausted.add(current.getUUID());
         chat(client, "Çiftçi " + (farmerIndex + 1) + " bitti (" + reason + "); " + villagerTrades + " takas yapıldı.");
@@ -477,7 +435,6 @@ public final class CycleController {
         step = Step.CLOSE;
     }
 
-    /** Havuç bir sonraki takasa yetmiyor: menüyü kapat, Shop'a dön, aynı köylüyle devam et. */
     private void notEnoughCarrots(Minecraft client, int carrots) {
         if (refills >= MAX_REFILLS) {
             finishMessage = "Shop'a dönüş sınırına ulaşıldı (" + MAX_REFILLS + "); " + tradesDone + " takas yapıldı.";
@@ -493,7 +450,6 @@ public final class CycleController {
         step = Step.CLOSE;
     }
 
-    /** Envanterdeki havuç + açık takas menüsünün ödeme slotlarındaki havuç. */
     private static int carrotsTotal(Minecraft client, MerchantMenu menu) {
         int total = InventoryManager.countCarrots(client);
         for (int slot = 0; slot <= 1; slot++) {
@@ -512,49 +468,37 @@ public final class CycleController {
     private String diagnoseNoResult(Minecraft client, MerchantMenu menu) {
         ItemStack payment = menu.getSlot(PAYMENT_SLOT_A).getItem();
         int carrots = carrotsTotal(client, menu);
-
-        if (payment.is(Items.CARROT) && payment.getCount() >= cost) {
-            return null; // havuç yerleşti ama sonuç yok: stok bitti / kilitli
-        }
-        if (carrots < cost) {
-            return "Havuç yetmiyor: " + carrots + " var, takas " + cost + " istiyor.";
-        }
-        return "Sunucu takas seçimine yanıt vermedi (havuç takas slotuna taşınmadı).";
+        if (payment.is(Items.CARROT) && payment.getCount() >= cost) return null;
+        if (carrots < cost) return "Havuç yetmiyor: " + carrots + " var, takas " + cost + " istiyor.";
+        return "Takas sonucu alınamadı. Sunucu yanıtı veya teklif durumu kontrol edilmeli.";
     }
 
-    /** Menüdeki oyuncu envanteri slotları arasında zümrüt için boş ya da yer olan slotu bulur. */
     private int findPlaceSlot(MerchantMenu menu) {
-        int start = Math.max(0, menu.slots.size() - 36);
-        int firstEmpty = -1;
-
-        for (int i = start; i < menu.slots.size(); i++) {
-            ItemStack stack = menu.getSlot(i).getItem();
-
-            if (stack.isEmpty()) {
-                if (firstEmpty < 0) firstEmpty = i;
-            } else if (stack.is(Items.EMERALD) && stack.getCount() + resultCount <= stack.getMaxStackSize()) {
-                return i;
+        for (int slot = 3; slot < menu.slots.size(); slot++) {
+            if (menu.getSlot(slot).hasItem() && menu.getSlot(slot).getItem().is(Items.EMERALD)
+                    && menu.getSlot(slot).getItem().getCount() + resultCount <= menu.getSlot(slot).getMaxStackSize()) {
+                return slot;
             }
         }
-
-        return firstEmpty;
+        for (int slot = 3; slot < menu.slots.size(); slot++) {
+            if (!menu.getSlot(slot).hasItem()) return slot;
+        }
+        return -1;
     }
 
     private boolean fail(Minecraft client, String message) {
-        baritone.stop();
-        if (client != null && client.player != null && client.screen instanceof AbstractContainerScreen<?>) {
-            client.player.closeContainer();
-        }
-        chat(client, "HATA: " + message + " Güvenli şekilde durduruldu.");
+        navigation.stop();
+        chat(client, message);
+        AutomationManager.INSTANCE.fail(message);
         step = Step.DONE;
-        AutomationManager.INSTANCE.fail("Döngü: " + message);
         return true;
     }
 
     private static void chat(Minecraft client, String message) {
         ErrorHandler.info(message);
         if (client != null && client.player != null) {
-            client.player.displayClientMessage(Component.literal("§6[Döngü]§r " + message), false);
+            client.player.displayClientMessage(
+                    net.minecraft.network.chat.Component.literal("§6[Otomasyon]§r " + message), false);
         }
     }
 }

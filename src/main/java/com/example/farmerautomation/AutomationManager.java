@@ -22,8 +22,7 @@ public final class AutomationManager {
     private int shulkerUsedSlots = -1;
     private int shulkerTotalSlots = -1;
 
-    private AutomationManager() {
-    }
+    private AutomationManager() { }
 
     public synchronized AutomationState getState() { return state; }
     public synchronized boolean isRunning() { return running; }
@@ -34,10 +33,9 @@ public final class AutomationManager {
     public synchronized int getShulkerUsedSlots() { return shulkerUsedSlots; }
     public synchronized int getShulkerTotalSlots() { return shulkerTotalSlots; }
 
-    /** Başlat: havuçları tamamla, çiftçileri bul, Baritone ile ulaş ve havuçları zümrüte takas et. */
+    /** Havuçları tamamla, çiftçileri bul, bağımsız yol bulma ile ulaş ve takas et. */
     public synchronized void start() {
         if (!canStart("Otomasyon")) return;
-
         running = true;
         state = AutomationState.CYCLE;
         stateBeforePause = AutomationState.CYCLE;
@@ -49,7 +47,6 @@ public final class AutomationManager {
     /** Aşama A: yalnızca tanılama; satın alma ve takas yapılmaz. */
     public synchronized void startDiagnostic() {
         if (!canStart("Teşhis")) return;
-
         running = true;
         state = AutomationState.DIAGNOSTIC;
         stateBeforePause = AutomationState.DIAGNOSTIC;
@@ -58,10 +55,9 @@ public final class AutomationManager {
         ErrorHandler.info("Teşhis başlatıldı. Satın alma ve takas yapılmayacak.");
     }
 
-    /** Phase B: en yakın çiftçiye git; takas ekranı tercihe bağlıdır. */
+    /** En yakın çiftçiye bağımsız yol bulma ile git; takas ekranı tercihe bağlıdır. */
     public synchronized void startNavigation() {
         if (!canStart("Köylüye git")) return;
-
         running = true;
         state = AutomationState.SCANNING_VILLAGERS;
         stateBeforePause = AutomationState.SCANNING_VILLAGERS;
@@ -70,10 +66,8 @@ public final class AutomationManager {
         ErrorHandler.info("Köylüye ulaşma başlatıldı. Otomatik takas kapalı.");
     }
 
-    /** Döngü: köylü takası (aşamalara göre genişler). */
     public synchronized void startCycle() {
         if (!canStart("Döngü")) return;
-
         running = true;
         state = AutomationState.CYCLE;
         stateBeforePause = AutomationState.CYCLE;
@@ -121,8 +115,9 @@ public final class AutomationManager {
             ErrorHandler.info("Devam edilecek duraklatılmış otomasyon yok. Durum: " + state);
             return;
         }
-        if (stateBeforePause == AutomationState.CYCLE && !cycleController.resume()) return;
-        if (isNavigationState(stateBeforePause) && !navigationController.resume()) return;
+        Minecraft client = Minecraft.getInstance();
+        if (stateBeforePause == AutomationState.CYCLE && !cycleController.resume(client)) return;
+        if (isNavigationState(stateBeforePause) && !navigationController.resume(client)) return;
         state = stateBeforePause;
         running = true;
         ErrorHandler.info("Otomasyon kaldığı yerden devam ediyor. Durum: " + state);
@@ -242,7 +237,6 @@ public final class AutomationManager {
 
     private void handleDiagnostic(Minecraft client) {
         boolean finished = diagnosticController.tick(client);
-        // Hata durumunda fail() ERROR yaptı; COMPLETED ile ezme.
         if (finished && getState() == AutomationState.DIAGNOSTIC) complete();
     }
 
@@ -262,6 +256,7 @@ public final class AutomationManager {
         boolean finished = navigationController.tick(client);
         if (finished && getState() != AutomationState.ERROR) complete();
     }
+
     private void handleCheckingStock(Minecraft client) { }
     private void handleCollectingEmeralds(Minecraft client) { }
     private void handleStoringItems(Minecraft client) { }
