@@ -376,13 +376,10 @@ public final class CycleController {
                     if (targetSlot < 0) return fail(client, "Envanterde zümrüt için yer yok; takas sonucu alınmadı.");
                     client.gameMode.handleInventoryMouseClick(menu.containerId, RESULT_SLOT, 0, ClickType.PICKUP, client.player);
                     ticks = 0;
-                    ItemStack carriedNow = menu.getCarried();
-                    if (!carriedNow.isEmpty() && carriedNow.is(Items.EMERALD)) {
-                        client.gameMode.handleInventoryMouseClick(menu.containerId, targetSlot, 0, ClickType.PICKUP, client.player);
-                        step = Step.WAIT_PLACE;
-                    } else {
-                        step = Step.WAIT_TAKE;
-                    }
+                    // Sonuç slotundan alma ve envantere bırakma tıklamalarını ayrı
+                    // client tick'lerine böl. Aynı tick'te iki tıklama bazı sunucularda
+                    // menünün kapanmasına veya ikinci tıklamanın yanlış menüye gitmesine yol açabiliyor.
+                    step = Step.WAIT_TAKE;
                 }
                 case WAIT_TAKE -> {
                     if (!(client.screen instanceof MerchantScreen screen)) {
