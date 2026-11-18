@@ -9,6 +9,7 @@ public final class AutomationManager {
     private final ShopController shopController = new ShopController();
     private final DiagnosticController diagnosticController = new DiagnosticController();
     private final CycleController cycleController = new CycleController();
+    private final FarmerNavigationController navigationController = new FarmerNavigationController();
 
     private AutomationState state = AutomationState.IDLE;
     private AutomationState stateBeforePause = AutomationState.IDLE;
@@ -55,6 +56,18 @@ public final class AutomationManager {
         currentVillagerIndex = -1;
         diagnosticController.reset();
         ErrorHandler.info("Teşhis başlatıldı. Satın alma ve takas yapılmayacak.");
+    }
+
+    /** Phase B: en yakın çiftçiye git; takas ekranı tercihe bağlıdır. */
+    public synchronized void startNavigation() {
+        if (!canStart("Köylüye git")) return;
+
+        running = true;
+        state = AutomationState.SCANNING_VILLAGERS;
+        stateBeforePause = AutomationState.SCANNING_VILLAGERS;
+        currentVillagerIndex = -1;
+        navigationController.reset(AutomationConfig.get().openTradeScreenAfterNavigation);
+        ErrorHandler.info("Köylüye ulaşma başlatıldı. Otomatik takas kapalı.");
     }
 
     /** Döngü: köylü takası (aşamalara göre genişler). */
@@ -119,6 +132,7 @@ public final class AutomationManager {
         shopController.reset();
         diagnosticController.reset();
         cycleController.reset();
+        navigationController.stop();
         closeOpenContainer();
         ErrorHandler.info("Otomasyon durduruldu; açık menü kapatıldı.");
     }
@@ -178,10 +192,7 @@ public final class AutomationManager {
                 case BUYING_CARROTS -> handleBuyingCarrots(client);
                 case DIAGNOSTIC -> handleDiagnostic(client);
                 case CYCLE -> handleCycle(client);
-                case SCANNING_VILLAGERS -> handleScanningVillagers(client);
-                case SELECTING_VILLAGER -> handleSelectingVillager(client);
-                case NAVIGATING -> handleNavigating(client);
-                case TRADING -> handleTrading(client);
+                case SCANNING_VILLAGERS, SELECTING_VILLAGER, NAVIGATING, TRADING -> handleNavigation(client);
                 case CHECKING_STOCK -> handleCheckingStock(client);
                 case COLLECTING_EMERALDS -> handleCollectingEmeralds(client);
                 case STORING_ITEMS -> handleStoringItems(client);
@@ -232,10 +243,10 @@ public final class AutomationManager {
         if (finished && getState() == AutomationState.CYCLE) complete();
     }
 
-    private void handleScanningVillagers(Minecraft client) { }
-    private void handleSelectingVillager(Minecraft client) { }
-    private void handleNavigating(Minecraft client) { }
-    private void handleTrading(Minecraft client) { }
+    private void handleNavigation(Minecraft client) {
+        boolean finished = navigationController.tick(client);
+        if (finished && getState() != AutomationState.ERROR) complete();
+    }
     private void handleCheckingStock(Minecraft client) { }
     private void handleCollectingEmeralds(Minecraft client) { }
     private void handleStoringItems(Minecraft client) { }
