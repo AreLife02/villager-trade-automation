@@ -144,7 +144,6 @@ public final class FarmerNavigationController {
     private boolean fail(String message) {
         baritone.stop();
         step = Step.DONE;
-        ErrorHandler.error(message);
         AutomationManager.INSTANCE.fail(message);
         return true;
     }
