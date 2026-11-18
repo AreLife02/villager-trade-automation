@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - phase-a-diagnostics
+      - fix/storage-fallback-ui
   pull_request:
     branches:
       - main
