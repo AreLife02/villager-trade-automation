@@ -468,29 +468,42 @@ public final class CycleController {
     private String diagnoseNoResult(Minecraft client, MerchantMenu menu) {
         ItemStack payment = menu.getSlot(PAYMENT_SLOT_A).getItem();
         int carrots = carrotsTotal(client, menu);
-        if (payment.is(Items.CARROT) && payment.getCount() >= cost) return null;
-        if (carrots < cost) return "Havuç yetmiyor: " + carrots + " var, takas " + cost + " istiyor.";
-        return "Takas sonucu alınamadı. Sunucu yanıtı veya teklif durumu kontrol edilmeli.";
+
+        if (payment.is(Items.CARROT) && payment.getCount() >= cost) {
+            return null; // havuç yerleşti ama sonuç yok: stok bitti / kilitli
+        }
+        if (carrots < cost) {
+            return "Havuç yetmiyor: " + carrots + " var, takas " + cost + " istiyor.";
+        }
+        return "Sunucu takas seçimine yanıt vermedi (havuç takas slotuna taşınmadı).";
     }
 
+    /** Menüdeki oyuncu envanteri slotları arasında zümrüt için boş ya da yer olan slotu bulur. */
     private int findPlaceSlot(MerchantMenu menu) {
-        for (int slot = 3; slot < menu.slots.size(); slot++) {
-            if (menu.getSlot(slot).hasItem() && menu.getSlot(slot).getItem().is(Items.EMERALD)
-                    && menu.getSlot(slot).getItem().getCount() + resultCount <= menu.getSlot(slot).getMaxStackSize()) {
-                return slot;
+        int start = Math.max(0, menu.slots.size() - 36);
+        int firstEmpty = -1;
+
+        for (int i = start; i < menu.slots.size(); i++) {
+            ItemStack stack = menu.getSlot(i).getItem();
+
+            if (stack.isEmpty()) {
+                if (firstEmpty < 0) firstEmpty = i;
+            } else if (stack.is(Items.EMERALD) && stack.getCount() + resultCount <= stack.getMaxStackSize()) {
+                return i;
             }
         }
-        for (int slot = 3; slot < menu.slots.size(); slot++) {
-            if (!menu.getSlot(slot).hasItem()) return slot;
-        }
-        return -1;
+
+        return firstEmpty;
     }
 
     private boolean fail(Minecraft client, String message) {
         navigation.stop();
-        chat(client, message);
-        AutomationManager.INSTANCE.fail(message);
+        if (client != null && client.player != null && client.screen instanceof AbstractContainerScreen<?>) {
+            client.player.closeContainer();
+        }
+        chat(client, "HATA: " + message + " Güvenli şekilde durduruldu.");
         step = Step.DONE;
+        AutomationManager.INSTANCE.fail("Döngü: " + message);
         return true;
     }
 
@@ -498,7 +511,7 @@ public final class CycleController {
         ErrorHandler.info(message);
         if (client != null && client.player != null) {
             client.player.displayClientMessage(
-                    net.minecraft.network.chat.Component.literal("§6[Otomasyon]§r " + message), false);
+                    net.minecraft.network.chat.Component.literal("§6[Döngü]§r " + message), false);
         }
     }
 }
