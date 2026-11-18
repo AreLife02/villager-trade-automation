@@ -243,12 +243,24 @@ public final class CycleController {
 
                     if (client.hitResult instanceof EntityHitResult entityHit
                             && entityHit.getEntity() == current) {
+                        // Havuç ana eldeyken MAIN_HAND kullanmak etkileşimi eşya etkileşimi
+                        // olarak gönderebilir. Köylü takası için boş eli tercih et.
+                        InteractionHand interactionHand;
+                        if (client.player.getMainHandItem().isEmpty()) {
+                            interactionHand = InteractionHand.MAIN_HAND;
+                        } else if (client.player.getOffhandItem().isEmpty()) {
+                            interactionHand = InteractionHand.OFF_HAND;
+                        } else {
+                            return fail(client, "Köylüyle konuşmak için iki elden en az biri boş olmalı.");
+                        }
                         InteractionResult interaction = client.gameMode.interact(
-                                client.player, current, InteractionHand.MAIN_HAND);
-                        lastInteraction = String.valueOf(interaction);
+                                client.player, current, interactionHand);
+                        lastInteraction = interactionHand + " / " + interaction
+                                + " / anaEl=" + client.player.getMainHandItem().getItem()
+                                + " / yanEl=" + client.player.getOffhandItem().getItem();
                         chat(client, "Nişangâh doğrulandı: hedef çiftçi, mesafe "
                                 + String.format(java.util.Locale.ROOT, "%.2f", client.player.distanceTo(current))
-                                + " blok. Etkileşim gönderildi: " + lastInteraction);
+                                + " blok. Boş el ile etkileşim gönderildi: " + lastInteraction);
                         ticks = 0;
                         step = Step.WAIT_SCREEN;
                         return false;
