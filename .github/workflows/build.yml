@@ -43,7 +43,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.event_name == 'workflow_dispatch' && inputs.create_release == true
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_release == true)
     needs: build
     runs-on: ubuntu-latest
 
@@ -68,6 +68,5 @@ jobs:
           body: |
             Minecraft 1.21.11 Fabric için otomatik köylü takas modu.
 
-            Bu sürümde köylüyle etkileşimden önce nişangâh hedefi doğrulanır.
-            Derleme başarılıdır; oyun içi test sonucu ayrıca doğrulanmalıdır.
+            Bu sürüm derleme testini geçti. Oyun içi test sonucu kullanıcı denemesiyle doğrulanır.
           files: release-files/*.jar
