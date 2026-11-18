@@ -49,7 +49,10 @@ public final class StorageController {
         if (step == Step.IDLE) {
             if (InventoryManager.countEmeralds(client) <= 0) return Result.DONE;
             if (config.selectedStorageTypes == null || config.selectedStorageTypes.isEmpty()) {
-                return fail("Depolama açık ancak hiçbir depolama türü seçilmemiş.");
+                // Depolama isteğe bağlıdır. Tür seçilmemiş olması takas döngüsünü durdurmamalı.
+                info(client, "Depolama türü seçilmedi; zümrütler envanterde bırakıldı.");
+                step = Step.DONE;
+                return Result.DONE;
             }
             scanTargets(client, config);
             if (targets.isEmpty()) {
