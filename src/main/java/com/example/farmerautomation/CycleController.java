@@ -426,8 +426,8 @@ public final class CycleController {
                     if (carrotsOk && emeraldsOk) {
                         tradesDone++;
                         villagerTrades++;
-                        chat(client, "Takas doğrulandı: havuç " + carrotsBefore + " -> " + carrots
-                                + ", zümrüt " + emeraldsBefore + " -> " + emeralds + ".");
+                        // Per-trade inventory deltas are intentionally kept out of chat.
+                        // Villager completion reports the compact trade count instead.
                         AutomationManager.INSTANCE.addEmeralds(resultCount);
                         ticks = 0;
                         selectRetries = 0;
