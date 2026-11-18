@@ -452,7 +452,19 @@ public final class CycleController {
                 case STORE -> {
                     StorageController.Result result = storage.tick(client);
                     if (result == StorageController.Result.FAILED) {
-                        return fail(client, storage.getError() == null ? "Zümrüt depolama başarısız." : storage.getError());
+                        String reason = storage.getError() == null
+                                ? "Depolama işlemi tamamlanamadı." : storage.getError();
+
+                        // Depolama isteğe bağlıdır: hata yalnızca depolama adımını
+                        // sonlandırmalı, ana köylü takas döngüsünü durdurmamalıdır.
+                        if (client.screen instanceof AbstractContainerScreen<?>) {
+                            client.player.closeContainer();
+                        }
+                        chat(client, "Depolama atlandı: " + reason
+                                + " Zümrütler envanterde bırakıldı; otomasyon devam ediyor.");
+                        storage.reset();
+                        step = afterStore;
+                        return false;
                     }
                     if (result == StorageController.Result.DONE) {
                         storage.reset();
