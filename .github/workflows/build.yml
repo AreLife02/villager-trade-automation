@@ -43,7 +43,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/phase-a-diagnostics'
+    if: (github.event_name == 'workflow_dispatch' && inputs.create_release == true) || (github.event_name == 'push' && github.ref == 'refs/heads/phase-a-diagnostics')
     needs: build
     runs-on: ubuntu-latest
 
