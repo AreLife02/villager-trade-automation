@@ -194,8 +194,12 @@ public final class StorageController {
 
     private static void info(Minecraft client, String message) {
         ErrorHandler.info(message);
-        if (client.player != null) {
-            client.player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6[Depolama]§r " + message), false);
+        // Sandık sayısı / açılma denemeleri sohbeti doldurmasın.
+        // Yalnızca aktarımın tamamlandığı bilgisi oyun sohbetinde gösterilir.
+        if (message.startsWith("Zümrütlerin tamamı depolamaya aktarıldı.")
+                && client.player != null) {
+            client.player.displayClientMessage(
+                    net.minecraft.network.chat.Component.literal("§6[Depolama]§r " + message), false);
         }
     }
 }
