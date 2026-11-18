@@ -43,7 +43,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.event_name == 'workflow_dispatch' && inputs.create_release == true
+    if: github.event_name == 'push' && github.ref == 'refs/heads/phase-a-diagnostics'
     needs: build
     runs-on: ubuntu-latest
 
@@ -64,10 +64,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: Farmer Automation Build ${{ github.run_number }}
+          name: Villager Trade Automation v${{ github.run_number }}
           body: |
-            Aşama 1 test derlemesi.
+            Minecraft 1.21.11 Fabric için otomatik köylü takas modu.
 
-            Bu sürüm yalnızca kontrol paneli, durum yönetimi ve JSON ayarlarını içerir.
-            Shop, köylü tarama, navigasyon, gerçek envanter okuma ve Shulker depolama henüz uygulanmadı.
+            Bu sürümde köylüyle etkileşimden önce nişangâh hedefi doğrulanır.
+            Derleme başarılıdır; oyun içi test sonucu ayrıca doğrulanmalıdır.
           files: release-files/*.jar
