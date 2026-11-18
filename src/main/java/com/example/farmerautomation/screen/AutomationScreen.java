@@ -1,7 +1,6 @@
 package com.example.farmerautomation.screen;
 
 import com.example.farmerautomation.AutomationManager;
-import com.example.farmerautomation.AutomationConfig;
 import com.example.farmerautomation.AutomationState;
 import com.example.farmerautomation.ErrorHandler;
 import net.minecraft.client.gui.GuiGraphics;
@@ -11,7 +10,6 @@ import net.minecraft.network.chat.Component;
 
 public final class AutomationScreen extends Screen {
     private final AutomationManager manager = AutomationManager.INSTANCE;
-    private Button tradeToggleButton;
 
     public AutomationScreen() {
         super(Component.translatable("screen.farmerautomation.title"));
@@ -20,66 +18,39 @@ public final class AutomationScreen extends Screen {
     @Override
     protected void init() {
         int centerX = this.width / 2;
-        int y = 45;
+        int left = centerX - 105;
+        int right = centerX + 5;
+        int y = 55;
 
         this.addRenderableWidget(Button.builder(
                         Component.translatable("screen.farmerautomation.start"),
                         button -> manager.start())
-                .bounds(centerX - 105, y, 100, 20)
-                .build());
-
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.cycle"),
-                        button -> manager.startCycle())
-                .bounds(centerX + 5, y, 100, 20)
-                .build());
-
-        y += 25;
-
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.pause"),
-                        button -> manager.pause())
-                .bounds(centerX - 105, y, 100, 20)
-                .build());
-
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.resume"),
-                        button -> manager.resume())
-                .bounds(centerX + 5, y, 100, 20)
-                .build());
-
-        y += 25;
-
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.diagnostic"),
-                        button -> manager.startDiagnostic())
-                .bounds(centerX - 105, y, 100, 20)
+                .bounds(left, y, 100, 20)
                 .build());
 
         this.addRenderableWidget(Button.builder(
                         Component.translatable("screen.farmerautomation.stop"),
                         button -> manager.stop())
-                .bounds(centerX + 5, y, 100, 20)
+                .bounds(right, y, 100, 20)
                 .build());
 
-        y += 25;
+        y += 27;
 
         this.addRenderableWidget(Button.builder(
-                        Component.literal("Köylüye Git"),
-                        button -> manager.startNavigation())
-                .bounds(centerX - 105, y, 100, 20)
+                        Component.translatable("screen.farmerautomation.pause"),
+                        button -> manager.pause())
+                .bounds(left, y, 100, 20)
                 .build());
 
-        tradeToggleButton = this.addRenderableWidget(Button.builder(
-                        tradeToggleLabel(),
-                        button -> toggleTradeScreen())
-                .bounds(centerX + 5, y, 100, 20)
+        this.addRenderableWidget(Button.builder(
+                        Component.translatable("screen.farmerautomation.resume"),
+                        button -> manager.resume())
+                .bounds(right, y, 100, 20)
                 .build());
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (tradeToggleButton != null) tradeToggleButton.setMessage(tradeToggleLabel());
         super.render(graphics, mouseX, mouseY, partialTick);
 
         AutomationState state = manager.getState();
@@ -88,7 +59,7 @@ public final class AutomationScreen extends Screen {
         graphics.drawCenteredString(this.font, Component.literal("Durum: " + state.name()),
                 this.width / 2, 30, 0xFFFF55);
 
-        int y = 160;
+        int y = 120;
         y = drawInfo(graphics, y, "Çalışıyor: " + yesNo(manager.isRunning()));
         y = drawInfo(graphics, y, "Bulunan köylü: " + manager.getVillagerCount());
         y = drawInfo(graphics, y, "Aktif köylü: " + activeVillagerText());
@@ -97,20 +68,6 @@ public final class AutomationScreen extends Screen {
         y = drawInfo(graphics, y, "Shulker doluluk: " + shulkerText());
         y = drawInfo(graphics, y, "Son bilgi: " + ErrorHandler.getLastInfo());
         drawInfo(graphics, y + 5, "Son hata: " + ErrorHandler.getLastError());
-    }
-
-    private Component tradeToggleLabel() {
-        return Component.literal("Takas ekranı: "
-                + (AutomationConfig.get().openTradeScreenAfterNavigation ? "Açık" : "Kapalı"));
-    }
-
-    private void toggleTradeScreen() {
-        AutomationConfig config = AutomationConfig.get();
-        config.openTradeScreenAfterNavigation = !config.openTradeScreenAfterNavigation;
-        config.save();
-        if (tradeToggleButton != null) tradeToggleButton.setMessage(tradeToggleLabel());
-        ErrorHandler.info("Köylüye ulaşıldığında takas ekranı "
-                + (config.openTradeScreenAfterNavigation ? "açılacak." : "açılmayacak."));
     }
 
     private int drawInfo(GuiGraphics graphics, int y, String text) {
