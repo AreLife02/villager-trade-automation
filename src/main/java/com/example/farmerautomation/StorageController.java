@@ -150,7 +150,7 @@ public final class StorageController {
                 }
             }
         }
-        targets.sort(Comparator.comparingLong(pos -> pos.distSqr(origin)));
+        targets.sort(Comparator.comparingDouble(pos -> pos.distSqr(origin)));
     }
 
     private boolean isSelected(net.minecraft.world.level.block.state.BlockState state, AutomationConfig c) {
