@@ -3,9 +3,13 @@ package com.example.farmerautomation;
 import net.minecraft.core.BlockPos;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -14,20 +18,6 @@ import java.util.Optional;
  */
 public final class BaritoneNavigation {
     public enum PathStatus { ACTIVE, IDLE }
-
-    private static final String[] SAFE_SETTINGS = {
-            "allowBreak",
-            "allowPlace",
-            "allowParkour",
-            "allowParkourPlace",
-            "allowDiagonalDescend",
-            "allowDownward",
-            "allowWaterBucketFall",
-            "assumeWalkOnLava",
-            "allowSprint",
-            "allowInventory",
-            "avoidance"
-    };
 
     private final Map<String, SettingSnapshot> previousSettings = new LinkedHashMap<>();
     private Object baritone;
@@ -108,11 +98,16 @@ public final class BaritoneNavigation {
         setBoolean(settings, "allowPlace", false);
         setBoolean(settings, "allowParkour", false);
         setBoolean(settings, "allowParkourPlace", false);
+        setBoolean(settings, "allowParkourAscend", false);
         setBoolean(settings, "allowDiagonalDescend", false);
         setBoolean(settings, "allowDownward", false);
         setBoolean(settings, "allowWaterBucketFall", false);
         setBoolean(settings, "assumeWalkOnLava", false);
+        setBoolean(settings, "assumeWalkOnWater", false);
         setBoolean(settings, "allowSprint", false);
+        setInteger(settings, "maxFallHeightNoWater", 1);
+        setInteger(settings, "maxFallHeightBucket", 0);
+        addHazardBlocksToAvoid(settings);
         setBoolean(settings, "allowInventory", false);
         setBoolean(settings, "avoidance", true);
         settingsApplied = true;
@@ -125,6 +120,34 @@ public final class BaritoneNavigation {
         Object oldValue = valueField.get(setting);
         previousSettings.put(name, new SettingSnapshot(setting, valueField, oldValue));
         valueField.set(setting, value);
+    }
+
+    private void setInteger(Object settings, String name, int value) throws ReflectiveOperationException {
+        Field settingField = settings.getClass().getField(name);
+        Object setting = settingField.get(settings);
+        Field valueField = setting.getClass().getField("value");
+        Object oldValue = valueField.get(setting);
+        previousSettings.put(name, new SettingSnapshot(setting, valueField, oldValue));
+        valueField.set(setting, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void addHazardBlocksToAvoid(Object settings) throws ReflectiveOperationException {
+        Field settingField = settings.getClass().getField("blocksToAvoid");
+        Object setting = settingField.get(settings);
+        Field valueField = setting.getClass().getField("value");
+        List<Block> oldBlocks = (List<Block>) valueField.get(setting);
+        previousSettings.put("blocksToAvoid",
+                new SettingSnapshot(setting, valueField, new ArrayList<>(oldBlocks)));
+
+        List<Block> safeBlocks = new ArrayList<>(oldBlocks);
+        for (Block block : List.of(Blocks.LAVA, Blocks.FIRE, Blocks.SOUL_FIRE,
+                Blocks.MAGMA_BLOCK, Blocks.CAMPFIRE, Blocks.SOUL_CAMPFIRE,
+                Blocks.CACTUS, Blocks.SWEET_BERRY_BUSH, Blocks.POWDER_SNOW,
+                Blocks.WITHER_ROSE, Blocks.POINTED_DRIPSTONE)) {
+            if (!safeBlocks.contains(block)) safeBlocks.add(block);
+        }
+        valueField.set(setting, safeBlocks);
     }
 
     private void restoreSettings() {
