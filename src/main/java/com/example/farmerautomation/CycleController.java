@@ -225,7 +225,7 @@ public final class CycleController {
                         return fail(client, "Yol bulunurken seçilen çiftçi artık mevcut değil.");
                     }
                     if (FarmerScanner.isAccessible(client, current)) {
-                        baritone.finish();
+                        baritone.stop();
                         chat(client, "Köylüye ulaşıldı; takas ekranı açılıyor.");
                         step = Step.INTERACT;
                         return false;
