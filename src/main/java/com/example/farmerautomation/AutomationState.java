@@ -12,6 +12,8 @@ public enum AutomationState {
     COLLECTING_EMERALDS,
     STORING_ITEMS,
     SWITCHING_VILLAGER,
+    DIAGNOSTIC,
+    CYCLE,
     PAUSED,
     ERROR,
     COMPLETED

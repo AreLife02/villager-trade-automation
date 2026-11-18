@@ -20,6 +20,16 @@ public final class InventoryManager {
         return count;
     }
 
+    public static int countEmeralds(Minecraft client) {
+        if (client == null || client.player == null) return -1;
+        int count = 0;
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            ItemStack stack = client.player.getInventory().getItem(i);
+            if (stack.is(Items.EMERALD)) count += stack.getCount();
+        }
+        return count;
+    }
+
     public static int remainingCarrotCapacity(Minecraft client) {
         if (client == null || client.player == null) return -1;
         ItemStack carrot = new ItemStack(Items.CARROT);

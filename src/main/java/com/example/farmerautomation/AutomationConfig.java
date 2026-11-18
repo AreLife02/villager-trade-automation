@@ -8,11 +8,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 public final class AutomationConfig {
-    private static final Gson GSON = new GsonBuilder()
-            .setPrettyPrinting()
-            .create();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public String shopCommand = "/shop";
     public String carrotItemName = "Havuç";
@@ -23,65 +24,67 @@ public final class AutomationConfig {
     public int villagerSearchRadius = 32;
     public int navigationTimeoutTicks = 600;
     public int actionTimeoutTicks = 100;
+    public int tradeIntervalTicks = 2;
+    public boolean openTradeScreenAfterNavigation = false;
+
+    public boolean unlimitedCycle = false;
+    public boolean storageEnabled = false;
+    public int storageSearchRadius = 8;
+    public Set<String> selectedStorageTypes = new LinkedHashSet<>(List.of("chest"));
 
     private static AutomationConfig instance;
 
-    private AutomationConfig() {
-    }
+    private AutomationConfig() { }
 
     public static AutomationConfig get() {
-        if (instance == null) {
-            instance = new AutomationConfig();
-        }
-
+        if (instance == null) instance = new AutomationConfig();
         return instance;
     }
 
     public static void load() {
         Path file = getConfigFile();
-
         if (!Files.exists(file)) {
             get().save();
             ErrorHandler.info("Yeni ayar dosyası oluşturuldu: " + file);
             return;
         }
-
         try {
-            String json = Files.readString(file, StandardCharsets.UTF_8);
-            AutomationConfig loaded = GSON.fromJson(json, AutomationConfig.class);
-
+            AutomationConfig loaded = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), AutomationConfig.class);
             if (loaded == null) {
                 ErrorHandler.error("Ayar dosyası boş veya bozuk. Varsayılan ayarlar kullanılacak.");
                 return;
             }
-
+            if (loaded.selectedStorageTypes == null) loaded.selectedStorageTypes = new LinkedHashSet<>(List.of("chest"));
+            loaded.villagerSearchRadius = Math.max(8, Math.min(256, loaded.villagerSearchRadius));
+            loaded.storageSearchRadius = Math.max(1, Math.min(32, loaded.storageSearchRadius));
             instance = loaded;
             ErrorHandler.info("Ayarlar yüklendi: " + file);
-        } catch (IOException exception) {
+        } catch (IOException | RuntimeException exception) {
             ErrorHandler.error("Ayar dosyası okunamadı: " + exception.getClass().getSimpleName());
-        } catch (Exception exception) {
-            ErrorHandler.error("Ayar dosyası çözümlenemedi: " + exception.getClass().getSimpleName());
         }
+    }
+
+    public boolean isStorageTypeSelected(String type) {
+        return selectedStorageTypes != null && selectedStorageTypes.contains(type);
+    }
+
+    public void toggleStorageType(String type) {
+        if (selectedStorageTypes == null) selectedStorageTypes = new LinkedHashSet<>();
+        if (!selectedStorageTypes.add(type)) selectedStorageTypes.remove(type);
+        save();
     }
 
     public void save() {
         Path file = getConfigFile();
-
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(
-                    file,
-                    GSON.toJson(this),
-                    StandardCharsets.UTF_8
-            );
+            Files.writeString(file, GSON.toJson(this), StandardCharsets.UTF_8);
         } catch (IOException exception) {
             ErrorHandler.error("Ayar dosyası kaydedilemedi: " + exception.getClass().getSimpleName());
         }
     }
 
     private static Path getConfigFile() {
-        return FabricLoader.getInstance()
-                .getConfigDir()
-                .resolve("farmerautomation.json");
+        return FabricLoader.getInstance().getConfigDir().resolve("farmerautomation.json");
     }
 }

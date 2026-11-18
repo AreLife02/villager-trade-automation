@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+      - phase-a-diagnostics
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       create_release:
@@ -63,10 +67,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: Farmer Automation Build ${{ github.run_number }}
+          name: Villager Trade Automation v${{ github.run_number }}
           body: |
-            Aşama 1 test derlemesi.
+            Minecraft 1.21.11 Fabric için otomatik köylü takas modu.
 
-            Bu sürüm yalnızca kontrol paneli, durum yönetimi ve JSON ayarlarını içerir.
-            Shop, köylü tarama, navigasyon, gerçek envanter okuma ve Shulker depolama henüz uygulanmadı.
+            Bu derleme oyun içi test için hazırlanmıştır.
           files: release-files/*.jar
