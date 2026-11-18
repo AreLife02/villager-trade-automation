@@ -264,9 +264,8 @@ public final class LocalNavigation {
         // Yolun bitişini AABB'nin kenarına göre değil, sunucunun
         // etkileşim mesafesi denetimine daha yakın olan entity merkezine göre seç.
         double safeRange = Math.max(1.0, Math.min(2.5, client.player.entityInteractionRange() - 0.25));
-        // Bu kontrol, oyuncunun şu anki konumunu değil, A*'ın değerlendirdiği
-        // olası varış noktasını kullanmalı. Aksi halde uzaktaki oyuncu için
-        // hiçbir düğüm hedef olamaz ve arama daima başarısız olur.
+        // Başlangıç düğümünde gerçek oyuncu konumu, sonraki düğümlerde aday
+        // varış konumu denetlenir; böylece uzaktayken hedef düğüm erken seçilmez.
         Vec3 candidatePosition = startNode
                 ? client.player.position()
                 : new Vec3(feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5);
