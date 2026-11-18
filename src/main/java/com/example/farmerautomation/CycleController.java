@@ -43,7 +43,7 @@ public final class CycleController {
     private static final int RESULT_SLOT = 2;
 
     private enum Step {
-        START, REFILL, SCAN, NEXT_VILLAGER, INTERACT, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
+        START, REFILL, SCAN, NEXT_VILLAGER, NAVIGATE, INTERACT, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
         TAKE_RESULT, WAIT_TAKE, PLACE_RESULT, WAIT_PLACE, VERIFY_TRADE,
         CLOSE, WAIT_CLOSE, FINISH, DONE
     }
@@ -72,11 +72,17 @@ public final class CycleController {
     private long lastSelectTick = -1;
 
     private final RefillController refill = new RefillController();
+    private final BaritoneNavigation baritone = new BaritoneNavigation();
+    private int navigationTicks;
+    private int navigationIdleTicks;
 
     /** Stoğu bitmiş / uygun takası olmayan köylüler. Shop gidiş-gelişiyle silinmez; yalnızca reset()'te sıfırlanır. */
     private final Set<UUID> exhausted = new HashSet<>();
 
     public void reset() {
+        baritone.stop();
+        navigationTicks = 0;
+        navigationIdleTicks = 0;
         step = Step.START;
         ticks = 0;
         selectRetries = 0;
@@ -102,6 +108,28 @@ public final class CycleController {
     }
 
     /** true: iş bitti (başarılı ya da fail çağrıldı). Çağıran durumu kontrol eder. */
+    public void pause() {
+        if (step == Step.NAVIGATE) {
+            baritone.stop();
+            chat(Minecraft.getInstance(), "Yol bulma duraklatıldı.");
+        }
+    }
+
+    public boolean resume() {
+        if (step != Step.NAVIGATE) return true;
+        if (current == null || !current.isAlive()) {
+            AutomationManager.INSTANCE.fail("Devam edilemedi: seçilen çiftçi artık mevcut değil.");
+            return false;
+        }
+        if (!baritone.start(current.blockPosition())) {
+            AutomationManager.INSTANCE.fail("Yol bulma devam ettirilemedi: " + baritone.getLastError());
+            return false;
+        }
+        navigationIdleTicks = 0;
+        chat(Minecraft.getInstance(), "Köylüye giden yol yeniden başlatıldı.");
+        return true;
+    }
+
     public boolean tick(Minecraft client) {
         if (client == null || client.player == null || client.level == null || client.gameMode == null) {
             return step == Step.DONE;
@@ -157,13 +185,13 @@ public final class CycleController {
                 }
                 case SCAN -> {
                     farmers.clear();
-                    farmers.addAll(FarmerScanner.scanAccessible(client));
+                    farmers.addAll(FarmerScanner.scanFarmers(client));
                     AutomationManager.INSTANCE.setVillagerCount(farmers.size());
                     if (farmers.isEmpty()) {
-                        return fail(client, "Erişilebilir çiftçi bulunamadı (menzil/görüş).");
+                        return fail(client, "Tarama alanında canlı çiftçi bulunamadı.");
                     }
                     farmerIndex = -1;
-                    chat(client, farmers.size() + " erişilebilir çiftçi bulundu (en yakından uzağa).");
+                    chat(client, farmers.size() + " çiftçi bulundu (en yakından uzağa); köylülere yol bulunarak gidilecek.");
                     step = Step.NEXT_VILLAGER;
                 }
                 case NEXT_VILLAGER -> {
@@ -180,7 +208,37 @@ public final class CycleController {
                     villagerTrades = 0;
                     AutomationManager.INSTANCE.setCurrentVillagerIndex(farmerIndex);
                     chat(client, "Çiftçi " + (farmerIndex + 1) + "/" + farmers.size() + " ile devam ediliyor.");
-                    step = Step.INTERACT;
+                    if (FarmerScanner.isAccessible(client, current)) {
+                        step = Step.INTERACT;
+                    } else {
+                        if (!baritone.start(current.blockPosition())) {
+                            return fail(client, "Çiftçiye yol başlatılamadı. Baritone hatası: " + baritone.getLastError());
+                        }
+                        navigationTicks = 0;
+                        navigationIdleTicks = 0;
+                        step = Step.NAVIGATE;
+                        chat(client, "Çiftçiye Baritone ile yol bulunuyor. Blok kırma/yerleştirme kapalı.");
+                    }
+                }
+                case NAVIGATE -> {
+                    if (current == null || !current.isAlive()) {
+                        return fail(client, "Yol bulunurken seçilen çiftçi artık mevcut değil.");
+                    }
+                    if (FarmerScanner.isAccessible(client, current)) {
+                        baritone.finish();
+                        chat(client, "Köylüye ulaşıldı; takas ekranı açılıyor.");
+                        step = Step.INTERACT;
+                        return false;
+                    }
+                    if (++navigationTicks > Math.max(40, AutomationConfig.get().navigationTimeoutTicks)) {
+                        return fail(client, "Köylüye ulaşmak için ayrılan süre doldu.");
+                    }
+                    BaritoneNavigation.PathStatus pathStatus = baritone.getPathStatus();
+                    if (pathStatus == BaritoneNavigation.PathStatus.ACTIVE) {
+                        navigationIdleTicks = 0;
+                    } else if (++navigationIdleTicks > 100) {
+                        return fail(client, "Baritone köylüye ulaşan bir yol bulamadı. Güvenlik için otomasyon durduruldu.");
+                    }
                 }
                 case INTERACT -> {
                     if (!FarmerScanner.isAccessible(client, current)) {
@@ -483,6 +541,7 @@ public final class CycleController {
     }
 
     private boolean fail(Minecraft client, String message) {
+        baritone.stop();
         if (client != null && client.player != null && client.screen instanceof AbstractContainerScreen<?>) {
             client.player.closeContainer();
         }
