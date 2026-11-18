@@ -626,8 +626,19 @@ public final class CycleController {
     }
 
     private static void chat(Minecraft client, String message) {
+        // Tüm ayrıntılar konsol günlüğünde kalsın; oyun sohbetinde yalnızca
+        // oyuncunun müdahale etmesi gereken veya döngünün bittiğini bildiren mesajları göster.
         ErrorHandler.info(message);
-        if (client != null && client.player != null) {
+        boolean important = message.startsWith("HATA:")
+                || message.startsWith("Döngü bitti.")
+                || message.startsWith("Envanterde yer yetmediği")
+                || message.startsWith("Shop alımı başarısız")
+                || message.startsWith("Depolama atlandı:")
+                || message.startsWith("Takas doğrulanamadı:")
+                || message.startsWith("Takas menüsü kapatılamadı")
+                || message.startsWith("Başlangıçta açık")
+                || message.startsWith("Devam edilemedi:");
+        if (important && client != null && client.player != null) {
             client.player.displayClientMessage(
                     net.minecraft.network.chat.Component.literal("§6[Döngü]§r " + message), false);
         }
