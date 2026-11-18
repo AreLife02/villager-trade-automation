@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - phase-a-diagnostics
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       create_release:
@@ -43,7 +46,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_release == true)
+    if: github.event_name == 'workflow_dispatch' && inputs.create_release == true
     needs: build
     runs-on: ubuntu-latest
 
@@ -68,5 +71,5 @@ jobs:
           body: |
             Minecraft 1.21.11 Fabric için otomatik köylü takas modu.
 
-            Bu sürüm derleme testini geçti. Oyun içi test sonucu kullanıcı denemesiyle doğrulanır.
+            Bu derleme oyun içi test için hazırlanmıştır.
           files: release-files/*.jar
