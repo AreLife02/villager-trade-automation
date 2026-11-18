@@ -52,7 +52,13 @@ public final class StorageController {
                 return fail("Depolama açık ancak hiçbir depolama türü seçilmemiş.");
             }
             scanTargets(client, config);
-            if (targets.isEmpty()) return fail("Seçilen türlerde yakınlarda depolama bulunamadı. Zümrütler envanterde bırakıldı.");
+            if (targets.isEmpty()) {
+                // No matching storage nearby is a normal optional-storage condition,
+                // not a trade-cycle failure. Keep emeralds in the player's inventory.
+                info(client, "Yakında seçili depolama bulunamadı; zümrütler envanterde bırakıldı.");
+                step = Step.DONE;
+                return Result.DONE;
+            }
             step = Step.OPEN;
             info(client, targets.size() + " uygun depolama bulundu; zümrütler aktarılacak.");
         }
