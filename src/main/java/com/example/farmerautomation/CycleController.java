@@ -40,7 +40,7 @@ public final class CycleController {
     private enum Step {
         START, REFILL, SCAN, NEXT_VILLAGER, NAVIGATE, INTERACT, WAIT_AIM, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
         TAKE_RESULT, WAIT_TAKE, PLACE_RESULT, WAIT_PLACE, VERIFY_TRADE,
-        CLOSE, WAIT_CLOSE, FINISH, DONE
+        CLOSE, WAIT_CLOSE, RESCAN_WAIT, FINISH, DONE
     }
 
     private Step step = Step.START;
@@ -175,7 +175,15 @@ public final class CycleController {
                     farmers.clear();
                     farmers.addAll(FarmerScanner.scanFarmers(client));
                     AutomationManager.INSTANCE.setVillagerCount(farmers.size());
-                    if (farmers.isEmpty()) return fail(client, "Tarama alanında canlı çiftçi bulunamadı.");
+                    if (farmers.isEmpty()) {
+                        if (AutomationConfig.get().unlimitedCycle) {
+                            ticks = 0;
+                            step = Step.RESCAN_WAIT;
+                            chat(client, "Tarama alanında çiftçi bulunamadı; 2 saniye sonra yeniden taranacak.");
+                            return false;
+                        }
+                        return fail(client, "Tarama alanında canlı çiftçi bulunamadı.");
+                    }
                     farmerIndex = -1;
                     chat(client, farmers.size() + " çiftçi bulundu (en yakından uzağa); bağımsız yol bulma kullanılacak.");
                     step = Step.NEXT_VILLAGER;
@@ -186,8 +194,16 @@ public final class CycleController {
                         farmerIndex++;
                     }
                     if (farmerIndex >= farmers.size()) {
-                        finishMessage = "Döngü bitti: " + tradesDone + " takas yapıldı, sıradaki çiftçi kalmadı.";
-                        step = Step.FINISH;
+                        if (AutomationConfig.get().unlimitedCycle) {
+                            exhausted.clear();
+                            ticks = 0;
+                            step = Step.RESCAN_WAIT;
+                            chat(client, "Listedeki çiftçiler tamamlandı (" + tradesDone
+                                    + " takas). Sınırsız döngü için yeniden taranıyor.");
+                        } else {
+                            finishMessage = "Döngü bitti: " + tradesDone + " takas yapıldı, sıradaki çiftçi kalmadı.";
+                            step = Step.FINISH;
+                        }
                         return false;
                     }
                     current = farmers.get(farmerIndex);
@@ -429,6 +445,12 @@ public final class CycleController {
                     } else {
                         if (ticks % 10 == 0) client.player.closeContainer();
                         if (ticks > CLOSE_TIMEOUT) return fail(client, "Takas menüsü kapatılamadı.");
+                    }
+                }
+                case RESCAN_WAIT -> {
+                    if (++ticks >= 40) {
+                        ticks = 0;
+                        step = Step.SCAN;
                     }
                 }
                 case FINISH -> {
