@@ -193,8 +193,19 @@ public final class CycleController {
                     step = Step.NEXT_VILLAGER;
                 }
                 case NEXT_VILLAGER -> {
+                    // Her köylüden sonra kalan hedefleri oyuncunun GÜNCEL konumuna
+                    // göre yeniden sırala. Dikey fark için hafif ek maliyet, gereksiz
+                    // kat değişimlerini azaltır; ulaşılabilirlik yine A* tarafından belirlenir.
+                    int remainingStart = Math.min(farmers.size(), Math.max(0, farmerIndex + 1));
+                    if (remainingStart < farmers.size()) {
+                        farmers.subList(remainingStart, farmers.size()).sort((first, second) ->
+                                Double.compare(routePriority(client, first), routePriority(client, second)));
+                    }
+
                     farmerIndex++;
-                    while (farmerIndex < farmers.size() && exhausted.contains(farmers.get(farmerIndex).getUUID())) {
+                    while (farmerIndex < farmers.size()
+                            && (exhausted.contains(farmers.get(farmerIndex).getUUID())
+                            || !farmers.get(farmerIndex).isAlive())) {
                         farmerIndex++;
                     }
                     if (farmerIndex >= farmers.size()) {
@@ -219,7 +230,12 @@ public final class CycleController {
                         step = Step.INTERACT;
                     } else {
                         if (!navigation.start(client, current)) {
-                            return fail(client, "Çiftçiye güvenli yol başlatılamadı: " + navigation.getLastError());
+                            exhausted.add(current.getUUID());
+                            chat(client, "Çiftçiye güvenli yol bulunamadı; bu köylü atlanıyor: "
+                                    + navigation.getLastError());
+                            navigation.stop();
+                            step = Step.NEXT_VILLAGER;
+                            return false;
                         }
                         step = Step.NAVIGATE;
                         chat(client, "Köylüye bağımsız yol bulma ile gidiliyor. Blok kırma/yerleştirme kapalı.");
@@ -227,7 +243,11 @@ public final class CycleController {
                 }
                 case NAVIGATE -> {
                     if (current == null || !current.isAlive()) {
-                        return fail(client, "Yol bulunurken seçilen çiftçi artık mevcut değil.");
+                        if (current != null) exhausted.add(current.getUUID());
+                        chat(client, "Hedef köylü artık mevcut değil; sıradaki köylüye geçiliyor.");
+                        navigation.stop();
+                        step = Step.NEXT_VILLAGER;
+                        return false;
                     }
                     LocalNavigation.Status status = navigation.tick(client, current);
                     if (status == LocalNavigation.Status.REACHED) {
@@ -236,7 +256,11 @@ public final class CycleController {
                         return false;
                     }
                     if (status == LocalNavigation.Status.FAILED) {
-                        return fail(client, "Köylüye ulaşılamadı: " + navigation.getLastError());
+                        exhausted.add(current.getUUID());
+                        chat(client, "Köylüye ulaşılamadı; bu köylü atlanıyor: " + navigation.getLastError());
+                        navigation.stop();
+                        step = Step.NEXT_VILLAGER;
+                        return false;
                     }
                 }
                 case INTERACT -> {
@@ -489,6 +513,11 @@ public final class CycleController {
         }
 
         return step == Step.DONE;
+    }
+
+    private static double routePriority(Minecraft client, Villager villager) {
+        double verticalDifference = Math.abs(client.player.getY() - villager.getY());
+        return FarmerScanner.reachDistance(client, villager) + verticalDifference * 0.25;
     }
 
     private boolean locateOffer(Minecraft client, MerchantMenu menu) {
