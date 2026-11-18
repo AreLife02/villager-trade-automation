@@ -202,7 +202,7 @@ public final class LocalNavigation {
             Double bestKnown = scores.get(node.pos());
             if (bestKnown == null || node.g() > bestKnown + 0.0001) continue;
 
-            if (isGoal(client, node.pos(), target)) {
+            if (isGoal(client, node.pos(), target, node.pos().equals(start))) {
                 goal = node.pos();
                 break;
             }
@@ -251,18 +251,25 @@ public final class LocalNavigation {
         return true;
     }
 
-    private static boolean isGoal(Minecraft client, BlockPos feet, Villager target) {
-        Vec3 eye = new Vec3(
-                feet.getX() + 0.5,
-                feet.getY() + client.player.getEyeHeight(),
-                feet.getZ() + 0.5);
+    private static boolean isGoal(Minecraft client, BlockPos feet, Villager target, boolean startNode) {
+        // Başlangıç düğümünde oyuncunun gerçek konumunu kullan. Blok merkezini
+        // kullanmak, oyuncu bloğun kenarındayken henüz erişemediği köylüyü
+        // erişilebilir sanıp tek düğümlü sahte bir rota oluşturabiliyordu.
+        Vec3 eye = startNode
+                ? client.player.getEyePosition()
+                : new Vec3(
+                        feet.getX() + 0.5,
+                        feet.getY() + client.player.getEyeHeight(),
+                        feet.getZ() + 0.5);
         // Yolun bitişini AABB'nin kenarına göre değil, sunucunun
         // etkileşim mesafesi denetimine daha yakın olan entity merkezine göre seç.
         double safeRange = Math.max(1.0, Math.min(2.5, client.player.entityInteractionRange() - 0.25));
         // Bu kontrol, oyuncunun şu anki konumunu değil, A*'ın değerlendirdiği
         // olası varış noktasını kullanmalı. Aksi halde uzaktaki oyuncu için
         // hiçbir düğüm hedef olamaz ve arama daima başarısız olur.
-        Vec3 candidatePosition = new Vec3(feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5);
+        Vec3 candidatePosition = startNode
+                ? client.player.position()
+                : new Vec3(feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5);
         if (candidatePosition.distanceToSqr(target.position()) > safeRange * safeRange) return false;
 
         Vec3[] points = {target.getEyePosition(),
