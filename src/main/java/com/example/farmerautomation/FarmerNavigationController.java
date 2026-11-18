@@ -3,20 +3,22 @@ package com.example.farmerautomation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.phys.EntityHitResult;
 
 import java.util.List;
 
 /** En yakın çiftçiye bağımsız yol bulma ile ulaşır ve gerçek takas ekranını doğrular. */
 public final class FarmerNavigationController {
-    private enum Step { SCAN, NAVIGATE, WAIT_TRADE_SCREEN, DONE }
+    private enum Step { SCAN, NAVIGATE, WAIT_AIM, WAIT_TRADE_SCREEN, DONE }
 
     private final LocalNavigation navigation = new LocalNavigation();
     private Step step = Step.SCAN;
     private Villager target;
     private boolean openTradeScreen;
     private int elapsedTicks;
+    private int aimAttempts;
+    private String lastInteraction = "-";
 
     public void reset(boolean openTradeScreen) {
         navigation.stop();
@@ -24,6 +26,8 @@ public final class FarmerNavigationController {
         step = Step.SCAN;
         target = null;
         elapsedTicks = 0;
+        aimAttempts = 0;
+        lastInteraction = "-";
     }
 
     /** true dönerse işlem tamamlanmış veya güvenli şekilde durdurulmuştur. */
@@ -70,6 +74,29 @@ public final class FarmerNavigationController {
                         return fail("Köylüye ulaşmak için ayrılan süre doldu.");
                     }
                 }
+                case WAIT_AIM -> {
+                    if (target == null || !target.isAlive()) return fail("Etkileşimden önce seçilen çiftçi artık mevcut değil.");
+                    if (++elapsedTicks < 2) return false;
+
+                    if (client.hitResult instanceof EntityHitResult hit && hit.getEntity() == target) {
+                        VillagerInteraction.Attempt attempt = VillagerInteraction.interact(client, target, hit);
+                        lastInteraction = attempt.describe();
+                        elapsedTicks = 0;
+                        step = Step.WAIT_TRADE_SCREEN;
+                        AutomationManager.INSTANCE.setState(AutomationState.TRADING);
+                        info("Nişangâh çiftçiyi doğruladı; vanilla etkileşim akışı gönderildi: " + lastInteraction);
+                        return false;
+                    }
+
+                    if (++aimAttempts <= 2) {
+                        LocalNavigation.faceEntity(client, target);
+                        elapsedTicks = 0;
+                        info("Nişangâh henüz çiftçiyi hedeflemiyor; kamera yeniden hizalanıyor (" + aimAttempts + "/2).");
+                        return false;
+                    }
+                    String hit = client.hitResult == null ? "yok" : client.hitResult.getType().name();
+                    return fail("Takas etkileşimi gönderilmedi: nişangâh çiftçiyi hedeflemiyor (hedef=" + hit + ").");
+                }
                 case WAIT_TRADE_SCREEN -> {
                     if (client.screen instanceof MerchantScreen) {
                         info("Takas ekranı gerçekten açıldı. Ekran açık bırakıldı; bu testte takas yapılmayacak.");
@@ -79,7 +106,7 @@ public final class FarmerNavigationController {
                     if (client.screen instanceof AbstractContainerScreen<?>) {
                         return fail("Köylü takas ekranı yerine farklı bir menü açıldı.");
                     }
-                    if (++elapsedTicks > 100) return fail("Köylü takas ekranı zamanında açılmadı.");
+                    if (++elapsedTicks > 100) return fail("Köylü takas ekranı zamanında açılmadı (etkileşim: " + lastInteraction + ").");
                 }
                 case DONE -> { return true; }
             }
@@ -99,11 +126,10 @@ public final class FarmerNavigationController {
             return fail("Köylüye ulaşıldı ancak etkileşim mesafesi veya görüş doğrulanamadı.");
         }
         LocalNavigation.faceEntity(client, target);
-        client.gameMode.interact(client.player, target, InteractionHand.MAIN_HAND);
         elapsedTicks = 0;
-        step = Step.WAIT_TRADE_SCREEN;
-        AutomationManager.INSTANCE.setState(AutomationState.TRADING);
-        info("Gerçek köylü etkileşimi gönderildi; takas ekranı doğrulanıyor.");
+        aimAttempts = 0;
+        step = Step.WAIT_AIM;
+        info("Kamera köylüye çevrildi; nişangâh doğrulandıktan sonra vanilla etkileşim akışı gönderilecek.");
         return false;
     }
 
