@@ -3,6 +3,7 @@ package com.example.farmerautomation.screen;
 import com.example.farmerautomation.AutomationManager;
 import com.example.farmerautomation.AutomationState;
 import com.example.farmerautomation.ErrorHandler;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -22,45 +23,34 @@ public final class AutomationScreen extends Screen {
         int right = centerX + 5;
         int y = 55;
 
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.start"),
-                        button -> manager.start())
-                .bounds(left, y, 100, 20)
-                .build());
-
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.stop"),
-                        button -> manager.stop())
-                .bounds(right, y, 100, 20)
-                .build());
+        this.addRenderableWidget(Button.builder(Component.translatable("screen.farmerautomation.start"),
+                button -> manager.start()).bounds(left, y, 100, 20).build());
+        this.addRenderableWidget(Button.builder(Component.translatable("screen.farmerautomation.stop"),
+                button -> manager.stop()).bounds(right, y, 100, 20).build());
 
         y += 27;
+        this.addRenderableWidget(Button.builder(Component.translatable("screen.farmerautomation.pause"),
+                button -> manager.pause()).bounds(left, y, 100, 20).build());
+        this.addRenderableWidget(Button.builder(Component.translatable("screen.farmerautomation.resume"),
+                button -> manager.resume()).bounds(right, y, 100, 20).build());
 
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.pause"),
-                        button -> manager.pause())
-                .bounds(left, y, 100, 20)
-                .build());
-
-        this.addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farmerautomation.resume"),
-                        button -> manager.resume())
-                .bounds(right, y, 100, 20)
-                .build());
+        y += 27;
+        this.addRenderableWidget(Button.builder(Component.literal("Ayarlar"),
+                button -> Minecraft.getInstance().setScreen(new AutomationSettingsScreen(this)))
+                .bounds(centerX - 75, y, 150, 20).build());
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
-
         AutomationState state = manager.getState();
         graphics.drawCenteredString(this.font, Component.translatable("screen.farmerautomation.title"),
                 this.width / 2, 15, 0xFFFFFF);
         graphics.drawCenteredString(this.font, Component.literal("Durum: " + state.name()),
                 this.width / 2, 30, 0xFFFF55);
 
-        int y = 120;
-        y = drawInfo(graphics, y, "Çalışıyor: " + yesNo(manager.isRunning()));
+        int y = 145;
+        y = drawInfo(graphics, y, "Çalışıyor: " + (manager.isRunning() ? "Evet" : "Hayır"));
         y = drawInfo(graphics, y, "Bulunan köylü: " + manager.getVillagerCount());
         y = drawInfo(graphics, y, "Aktif köylü: " + activeVillagerText());
         y = drawInfo(graphics, y, "Toplam zümrüt: " + manager.getTotalEmeralds());
@@ -75,29 +65,20 @@ public final class AutomationScreen extends Screen {
         return y + 14;
     }
 
-    private String yesNo(boolean value) {
-        return value ? "Evet" : "Hayır";
-    }
-
     private String activeVillagerText() {
         int index = manager.getCurrentVillagerIndex();
         return index < 0 ? "Yok" : (index + 1) + ". köylü";
     }
 
     private String inventoryCarrotText() {
-        return manager.getCarrotsInInventory() < 0
-                ? "Henüz okunmuyor"
-                : String.valueOf(manager.getCarrotsInInventory());
+        return manager.getCarrotsInInventory() < 0 ? "Henüz okunmuyor" : String.valueOf(manager.getCarrotsInInventory());
     }
 
     private String shulkerText() {
-        return manager.getShulkerTotalSlots() <= 0
-                ? "Henüz okunmuyor"
+        return manager.getShulkerTotalSlots() <= 0 ? "Henüz okunmuyor"
                 : manager.getShulkerUsedSlots() + "/" + manager.getShulkerTotalSlots();
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
+    public boolean isPauseScreen() { return false; }
 }
