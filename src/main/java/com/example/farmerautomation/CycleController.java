@@ -30,7 +30,7 @@ import java.util.UUID;
 public final class CycleController {
     private static final int SCREEN_TIMEOUT = 60;
     private static final int OFFERS_TIMEOUT = 40;
-    private static final int RESULT_TIMEOUT = 20;
+    private static final int RESULT_TIMEOUT = 10;
     private static final int MAX_SELECT_RETRIES = 2;
     private static final int CLICK_TIMEOUT = 20;
     private static final int VERIFY_TIMEOUT = 40;
@@ -247,8 +247,8 @@ public final class CycleController {
                     MerchantMenu menu = screen.getMenu();
                     ItemStack result = menu.getSlot(RESULT_SLOT).getItem();
                     ticks++;
-                    // Sunucu yanıtı gelsin diye en az 4 tick bekle, sonra sonucu al.
-                    if (ticks >= 4 && !result.isEmpty() && result.is(Items.EMERALD) && result.getCount() == resultCount) {
+                    // Sunucu yanıtı gelsin diye en az 2 tick bekle, sonra sonucu al.
+                    if (ticks >= 2 && !result.isEmpty() && result.is(Items.EMERALD) && result.getCount() == resultCount) {
                         step = Step.TAKE_RESULT;
                         return false;
                     }
