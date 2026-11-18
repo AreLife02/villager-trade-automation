@@ -105,6 +105,7 @@ public final class AutomationManager {
         }
         if (state == AutomationState.PAUSED || state == AutomationState.ERROR || state == AutomationState.COMPLETED) return;
         stateBeforePause = state;
+        if (isNavigationState(state)) navigationController.pause();
         running = false;
         state = AutomationState.PAUSED;
         ErrorHandler.info("Otomasyon duraklatıldı. Kaldığı aşama: " + stateBeforePause);
@@ -119,6 +120,7 @@ public final class AutomationManager {
             ErrorHandler.info("Devam edilecek duraklatılmış otomasyon yok. Durum: " + state);
             return;
         }
+        if (isNavigationState(stateBeforePause) && !navigationController.resume()) return;
         state = stateBeforePause;
         running = true;
         ErrorHandler.info("Otomasyon kaldığı yerden devam ediyor. Durum: " + state);
@@ -200,6 +202,7 @@ public final class AutomationManager {
                 default -> { }
             }
         } catch (Exception exception) {
+            navigationController.stop();
             closeOpenContainer();
             if (client.player != null) {
                 client.player.displayClientMessage(net.minecraft.network.chat.Component.literal(
@@ -241,6 +244,13 @@ public final class AutomationManager {
     private void handleCycle(Minecraft client) {
         boolean finished = cycleController.tick(client);
         if (finished && getState() == AutomationState.CYCLE) complete();
+    }
+
+    private static boolean isNavigationState(AutomationState candidate) {
+        return candidate == AutomationState.SCANNING_VILLAGERS
+                || candidate == AutomationState.SELECTING_VILLAGER
+                || candidate == AutomationState.NAVIGATING
+                || candidate == AutomationState.TRADING;
     }
 
     private void handleNavigation(Minecraft client) {
