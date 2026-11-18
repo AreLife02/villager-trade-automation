@@ -7,6 +7,7 @@ import net.minecraft.network.protocol.game.ServerboundSelectTradePacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
@@ -39,7 +40,7 @@ public final class CycleController {
     private static final int RESULT_SLOT = 2;
 
     private enum Step {
-        START, REFILL, SCAN, NEXT_VILLAGER, NAVIGATE, INTERACT, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
+        START, REFILL, SCAN, NEXT_VILLAGER, NAVIGATE, INTERACT, WAIT_AIM, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
         TAKE_RESULT, WAIT_TAKE, PLACE_RESULT, WAIT_PLACE, VERIFY_TRADE,
         CLOSE, WAIT_CLOSE, FINISH, DONE
     }
@@ -47,6 +48,7 @@ public final class CycleController {
     private Step step = Step.START;
     private int ticks;
     private int selectRetries;
+    private int aimAttempts;
 
     private final List<Villager> farmers = new ArrayList<>();
     private Villager current;
@@ -78,6 +80,7 @@ public final class CycleController {
         step = Step.START;
         ticks = 0;
         selectRetries = 0;
+        aimAttempts = 0;
         farmers.clear();
         current = null;
         offerIndex = -1;
@@ -225,12 +228,49 @@ public final class CycleController {
                         return false;
                     }
                     lastSelectTick = -1;
+                    aimAttempts = 0;
                     LocalNavigation.faceEntity(client, current);
-                    InteractionResult interaction = client.gameMode.interact(
-                            client.player, current, InteractionHand.MAIN_HAND);
-                    lastInteraction = String.valueOf(interaction);
                     ticks = 0;
-                    step = Step.WAIT_SCREEN;
+                    step = Step.WAIT_AIM;
+                }
+                case WAIT_AIM -> {
+                    if (current == null || !current.isAlive()) {
+                        return fail(client, "Etkileşimden önce seçilen çiftçi artık mevcut değil.");
+                    }
+                    // Kamera açıları değişince Minecraft'ın crosshair hitResult değeri aynı
+                    // tick içinde güncellenmeyebilir. En az iki client tick bekle.
+                    if (++ticks < 2) return false;
+
+                    if (client.hitResult instanceof EntityHitResult entityHit
+                            && entityHit.getEntity() == current) {
+                        InteractionResult interaction = client.gameMode.interact(
+                                client.player, current, InteractionHand.MAIN_HAND);
+                        lastInteraction = String.valueOf(interaction);
+                        chat(client, "Nişangâh doğrulandı: hedef çiftçi, mesafe "
+                                + String.format(java.util.Locale.ROOT, "%.2f", client.player.distanceTo(current))
+                                + " blok. Etkileşim gönderildi: " + lastInteraction);
+                        ticks = 0;
+                        step = Step.WAIT_SCREEN;
+                        return false;
+                    }
+
+                    if (aimAttempts < 2) {
+                        aimAttempts++;
+                        LocalNavigation.faceEntity(client, current);
+                        ticks = 0;
+                        chat(client, "Nişangâh hedefi henüz köylü değil; kamera yeniden hizalanıyor ("
+                                + aimAttempts + "/2).");
+                        return false;
+                    }
+
+                    String hit = client.hitResult == null ? "yok"
+                            : client.hitResult.getType().name()
+                            + (client.hitResult instanceof EntityHitResult entityHit
+                                ? " / " + entityHit.getEntity().getType().toString() : "");
+                    return fail(client, "Köylüye etkileşim gönderilmedi: nişangâh köylüyü hedeflemiyor"
+                            + " (hedef=" + hit
+                            + ", mesafe=" + String.format(java.util.Locale.ROOT, "%.2f", client.player.distanceTo(current))
+                            + ", menzil/görüş=" + FarmerScanner.isAccessible(client, current) + ").");
                 }
                 case WAIT_SCREEN -> {
                     if (client.screen instanceof MerchantScreen) {
