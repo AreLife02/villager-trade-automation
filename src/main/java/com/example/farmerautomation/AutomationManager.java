@@ -34,16 +34,16 @@ public final class AutomationManager {
     public synchronized int getShulkerUsedSlots() { return shulkerUsedSlots; }
     public synchronized int getShulkerTotalSlots() { return shulkerTotalSlots; }
 
-    /** Existing Shop-only behavior is intentionally unchanged. */
+    /** Başlat: havuçları tamamla, çiftçileri bul, Baritone ile ulaş ve havuçları zümrüte takas et. */
     public synchronized void start() {
         if (!canStart("Otomasyon")) return;
 
         running = true;
-        state = AutomationState.OPENING_SHOP;
-        stateBeforePause = AutomationState.OPENING_SHOP;
+        state = AutomationState.CYCLE;
+        stateBeforePause = AutomationState.CYCLE;
         currentVillagerIndex = -1;
-        shopController.reset();
-        ErrorHandler.info("Otomasyon başlatıldı. Hedef: " + AutomationConfig.get().targetCarrotStacks + " stack havuç.");
+        cycleController.reset();
+        ErrorHandler.info("Otomatik çiftçi takası başlatıldı. Hedef: havuçları zümrüte çevirmek.");
     }
 
     /** Aşama A: yalnızca tanılama; satın alma ve takas yapılmaz. */
@@ -105,7 +105,8 @@ public final class AutomationManager {
         }
         if (state == AutomationState.PAUSED || state == AutomationState.ERROR || state == AutomationState.COMPLETED) return;
         stateBeforePause = state;
-        if (isNavigationState(state)) navigationController.pause();
+        if (state == AutomationState.CYCLE) cycleController.pause();
+        else if (isNavigationState(state)) navigationController.pause();
         running = false;
         state = AutomationState.PAUSED;
         ErrorHandler.info("Otomasyon duraklatıldı. Kaldığı aşama: " + stateBeforePause);
@@ -120,6 +121,7 @@ public final class AutomationManager {
             ErrorHandler.info("Devam edilecek duraklatılmış otomasyon yok. Durum: " + state);
             return;
         }
+        if (stateBeforePause == AutomationState.CYCLE && !cycleController.resume()) return;
         if (isNavigationState(stateBeforePause) && !navigationController.resume()) return;
         state = stateBeforePause;
         running = true;
@@ -154,6 +156,8 @@ public final class AutomationManager {
 
     public synchronized void fail(String message) {
         ErrorHandler.error(message);
+        cycleController.reset();
+        navigationController.stop();
         running = false;
         state = AutomationState.ERROR;
         stateBeforePause = AutomationState.ERROR;
@@ -203,6 +207,7 @@ public final class AutomationManager {
             }
         } catch (Exception exception) {
             navigationController.stop();
+            cycleController.reset();
             closeOpenContainer();
             if (client.player != null) {
                 client.player.displayClientMessage(net.minecraft.network.chat.Component.literal(
