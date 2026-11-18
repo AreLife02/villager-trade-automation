@@ -40,7 +40,7 @@ public final class AutomationSettingsScreen extends Screen {
         addRenderableWidget(Button.builder(storageLabel(config), b -> {
             config.storageEnabled = !config.storageEnabled;
             config.save();
-            b.setMessage(storageLabel(config));
+            Minecraft.getInstance().setScreen(new AutomationSettingsScreen(parent));
         }).bounds(center - 110, y, 220, 20).build());
 
         if (config.storageEnabled) {
