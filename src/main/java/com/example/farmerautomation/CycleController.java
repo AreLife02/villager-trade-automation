@@ -6,12 +6,14 @@ import net.minecraft.client.gui.screens.inventory.MerchantScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundSelectTradePacket;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.phys.EntityHitResult;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -65,6 +67,7 @@ public final class CycleController {
     private Step afterRefill = Step.SCAN;
     private int refills;
     private String finishMessage;
+    private String lastInteraction = "-";
 
     private final RefillController refill = new RefillController();
 
@@ -180,7 +183,15 @@ public final class CycleController {
                         step = Step.NEXT_VILLAGER;
                         return false;
                     }
-                    client.gameMode.interact(client.player, current, InteractionHand.MAIN_HAND);
+                    // Vanilla sırası: önce interactAt (bakılan noktayla), tüketilmezse interact.
+                    InteractionResult interaction = null;
+                    if (client.hitResult instanceof EntityHitResult entityHit && entityHit.getEntity() == current) {
+                        interaction = client.gameMode.interactAt(client.player, current, entityHit, InteractionHand.MAIN_HAND);
+                    }
+                    if (interaction == null || !interaction.consumesAction()) {
+                        interaction = client.gameMode.interact(client.player, current, InteractionHand.MAIN_HAND);
+                    }
+                    lastInteraction = String.valueOf(interaction);
                     ticks = 0;
                     step = Step.WAIT_SCREEN;
                 }
@@ -188,8 +199,12 @@ public final class CycleController {
                     if (client.screen instanceof MerchantScreen) {
                         ticks = 0;
                         step = Step.WAIT_OFFERS;
+                    } else if (client.screen instanceof AbstractContainerScreen<?> other) {
+                        return fail(client, "Çiftçi takas menüsü yerine farklı bir menü açtı: "
+                                + other.getClass().getSimpleName() + " / başlık: " + other.getTitle().getString());
                     } else if (++ticks > SCREEN_TIMEOUT) {
-                        return fail(client, "Takas menüsü zamanında açılmadı.");
+                        return fail(client, "Takas menüsü zamanında açılmadı (etkileşim sonucu: " + lastInteraction
+                                + ", ekran: " + (client.screen == null ? "yok" : client.screen.getClass().getSimpleName()) + ").");
                     }
                 }
                 case WAIT_OFFERS -> {
