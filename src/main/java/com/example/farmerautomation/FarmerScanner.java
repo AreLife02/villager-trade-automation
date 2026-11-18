@@ -55,8 +55,15 @@ public final class FarmerScanner {
     }
 
     public static boolean isAccessible(Minecraft client, Villager villager) {
-        return villager.isAlive()
-                && reachDistance(client, villager) <= client.player.entityInteractionRange()
+        if (client == null || client.player == null || client.level == null || villager == null
+                || !villager.isAlive()) {
+            return false;
+        }
+
+        // AABB mesafesi tek başına yeterli değil: sunucu etkileşimde varlığın
+        // merkez konumuna göre menzil denetimi yapabilir. Güvenli pay bırak.
+        double safeRange = Math.max(1.0, Math.min(2.5, client.player.entityInteractionRange() - 0.25));
+        return client.player.distanceToSqr(villager) <= safeRange * safeRange
                 && hasLineOfSight(client, villager);
     }
 
