@@ -54,7 +54,7 @@ public final class AutomationSettingsScreen extends Screen {
         y += 35;
         addRenderableWidget(Button.builder(Component.literal("Geri"),
                 b -> Minecraft.getInstance().setScreen(parent))
-                .bounds(center - 50, y, 100, 20).build());
+                .bounds(center - 50, height - 28, 100, 20).build());
     }
 
     private void changeRadius(int delta) {
