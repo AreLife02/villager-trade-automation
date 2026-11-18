@@ -76,7 +76,8 @@ public final class AutomationSettingsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        // Screen.render already renders the background. Calling renderBackground here
+        // as well triggers Minecraft's "Can only blur once per frame" guard.
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 22, 0xFFFFFF);
         graphics.drawCenteredString(font, Component.literal("Ayarlar otomatik kaydedilir"), width / 2, 39, 0xAAAAAA);
