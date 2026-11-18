@@ -4,8 +4,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
 import net.minecraft.network.protocol.game.ServerboundSelectTradePacket;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.inventory.ClickType;
@@ -243,17 +241,15 @@ public final class CycleController {
 
                     if (client.hitResult instanceof EntityHitResult entityHit
                             && entityHit.getEntity() == current) {
-                        // Vanilla sağ tık varsayılan olarak ana eli kullanır. Havuç elde olsa da
-                        // köylü etkileşimini boş yan ele kaydırma; aynı el davranışını uygula.
-                        InteractionHand interactionHand = InteractionHand.MAIN_HAND;
-                        InteractionResult interaction = client.gameMode.interact(
-                                client.player, current, interactionHand);
-                        lastInteraction = interactionHand + " / " + interaction
+                        // Minecraft'ın normal sağ tık akışı: önce hit konumuyla interactAt,
+                        // sonuç eylemi tüketmiyorsa standart interact paketine geç.
+                        VillagerInteraction.Attempt attempt = VillagerInteraction.interact(client, current, entityHit);
+                        lastInteraction = attempt.describe()
                                 + " / anaEl=" + client.player.getMainHandItem().getItem()
                                 + " / yanEl=" + client.player.getOffhandItem().getItem();
                         chat(client, "Nişangâh doğrulandı: hedef çiftçi, mesafe "
                                 + String.format(java.util.Locale.ROOT, "%.2f", client.player.distanceTo(current))
-                                + " blok. Ana el ile etkileşim gönderildi: " + lastInteraction);
+                                + " blok. Vanilla etkileşim akışı gönderildi: " + lastInteraction);
                         ticks = 0;
                         step = Step.WAIT_SCREEN;
                         return false;
