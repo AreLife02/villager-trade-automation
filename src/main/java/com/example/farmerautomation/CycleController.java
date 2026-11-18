@@ -68,6 +68,8 @@ public final class CycleController {
     private int refills;
     private String finishMessage;
     private String lastInteraction = "-";
+    private long tickCounter;
+    private long lastSelectTick = -1;
 
     private final RefillController refill = new RefillController();
 
@@ -95,6 +97,8 @@ public final class CycleController {
         finishMessage = null;
         exhausted.clear();
         refill.reset();
+        tickCounter = 0;
+        lastSelectTick = -1;
     }
 
     /** true: iş bitti (başarılı ya da fail çağrıldı). Çağıran durumu kontrol eder. */
@@ -104,6 +108,8 @@ public final class CycleController {
         }
 
         if (step == Step.DONE) return true;
+
+        tickCounter++;
 
         try {
             switch (step) {
@@ -183,6 +189,7 @@ public final class CycleController {
                         step = Step.NEXT_VILLAGER;
                         return false;
                     }
+                    lastSelectTick = -1;
                     // Vanilla sırası: önce interactAt (bakılan noktayla), tüketilmezse interact.
                     InteractionResult interaction = null;
                     if (client.hitResult instanceof EntityHitResult entityHit && entityHit.getEntity() == current) {
@@ -223,6 +230,11 @@ public final class CycleController {
                     if (!(client.screen instanceof MerchantScreen screen)) {
                         return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
                     }
+                    // Takas hızı: iki seçim arasında en az tradeIntervalTicks tick (varsayılan 10 = 0,5 sn).
+                    if (lastSelectTick >= 0
+                            && tickCounter - lastSelectTick < Math.max(1, AutomationConfig.get().tradeIntervalTicks)) {
+                        return false;
+                    }
                     // Takas menüsü ödeme slotuna havuçları bir stack'e kadar taşır; bunları da say.
                     int carrots = carrotsTotal(client, screen.getMenu());
                     if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
@@ -237,6 +249,7 @@ public final class CycleController {
                     selectRetries = 0;
                     emeraldsBefore = InventoryManager.countEmeralds(client);
                     sendSelect(client, screen.getMenu());
+                    lastSelectTick = tickCounter;
                     ticks = 0;
                     step = Step.WAIT_RESULT;
                 }
@@ -247,8 +260,8 @@ public final class CycleController {
                     MerchantMenu menu = screen.getMenu();
                     ItemStack result = menu.getSlot(RESULT_SLOT).getItem();
                     ticks++;
-                    // Sunucu yanıtı gelsin diye en az 2 tick bekle, sonra sonucu al.
-                    if (ticks >= 2 && !result.isEmpty() && result.is(Items.EMERALD) && result.getCount() == resultCount) {
+                    // Sunucu yanıtı gelsin diye en az 1 tick bekle, sonra sonucu al.
+                    if (ticks >= 1 && !result.isEmpty() && result.is(Items.EMERALD) && result.getCount() == resultCount) {
                         step = Step.TAKE_RESULT;
                         return false;
                     }
@@ -277,7 +290,14 @@ public final class CycleController {
                     // Tek normal tıklama: sonucu imlece al (Shift-tıklama yok).
                     client.gameMode.handleInventoryMouseClick(menu.containerId, RESULT_SLOT, 0, ClickType.PICKUP, client.player);
                     ticks = 0;
-                    step = Step.WAIT_TAKE;
+                    ItemStack carriedNow = menu.getCarried();
+                    if (!carriedNow.isEmpty() && carriedNow.is(Items.EMERALD)) {
+                        // İstemci tahmini imleçte zümrütü hemen gösterdi: aynı tick'te envantere yerleştir.
+                        client.gameMode.handleInventoryMouseClick(menu.containerId, targetSlot, 0, ClickType.PICKUP, client.player);
+                        step = Step.WAIT_PLACE;
+                    } else {
+                        step = Step.WAIT_TAKE;
+                    }
                 }
                 case WAIT_TAKE -> {
                     if (!(client.screen instanceof MerchantScreen screen)) {
