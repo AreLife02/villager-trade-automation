@@ -40,7 +40,7 @@ public final class CycleController {
     private enum Step {
         START, REFILL, SCAN, NEXT_VILLAGER, NAVIGATE, INTERACT, WAIT_AIM, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
         TAKE_RESULT, WAIT_TAKE, PLACE_RESULT, WAIT_PLACE, VERIFY_TRADE,
-        CLOSE, WAIT_CLOSE, RESCAN_WAIT, FINISH, DONE
+        CLOSE, WAIT_CLOSE, RESCAN_WAIT, STORE, FINISH, DONE
     }
 
     private Step step = Step.START;
@@ -68,6 +68,8 @@ public final class CycleController {
     private long lastSelectTick = -1;
 
     private final RefillController refill = new RefillController();
+    private final StorageController storage = new StorageController();
+    private Step afterStore = Step.NEXT_VILLAGER;
     private final LocalNavigation navigation = new LocalNavigation();
 
     /** Stoğu bitmiş / uygun takası olmayan köylüler. Shop gidiş-gelişiyle silinmez; yalnızca reset()'te sıfırlanır. */
@@ -96,6 +98,8 @@ public final class CycleController {
         finishMessage = null;
         exhausted.clear();
         refill.reset();
+        storage.reset();
+        afterStore = Step.NEXT_VILLAGER;
         tickCounter = 0;
         lastSelectTick = -1;
     }
@@ -202,7 +206,8 @@ public final class CycleController {
                                     + " takas). Sınırsız döngü için yeniden taranıyor.");
                         } else {
                             finishMessage = "Döngü bitti: " + tradesDone + " takas yapıldı, sıradaki çiftçi kalmadı.";
-                            step = Step.FINISH;
+                            afterStore = Step.FINISH;
+                            step = Step.STORE;
                         }
                         return false;
                     }
@@ -447,6 +452,16 @@ public final class CycleController {
                         if (ticks > CLOSE_TIMEOUT) return fail(client, "Takas menüsü kapatılamadı.");
                     }
                 }
+                case STORE -> {
+                    StorageController.Result result = storage.tick(client);
+                    if (result == StorageController.Result.FAILED) {
+                        return fail(client, storage.getError() == null ? "Zümrüt depolama başarısız." : storage.getError());
+                    }
+                    if (result == StorageController.Result.DONE) {
+                        storage.reset();
+                        step = afterStore;
+                    }
+                }
                 case RESCAN_WAIT -> {
                     if (++ticks >= 40) {
                         ticks = 0;
@@ -494,7 +509,9 @@ public final class CycleController {
     private void villagerDone(Minecraft client, String reason) {
         if (current != null) exhausted.add(current.getUUID());
         chat(client, "Çiftçi " + (farmerIndex + 1) + " bitti (" + reason + "); " + villagerTrades + " takas yapıldı.");
-        afterClose = Step.NEXT_VILLAGER;
+        afterClose = Step.STORE;
+        afterStore = Step.NEXT_VILLAGER;
+        storage.reset();
         step = Step.CLOSE;
     }
 
