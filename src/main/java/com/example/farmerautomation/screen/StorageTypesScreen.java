@@ -12,7 +12,7 @@ public final class StorageTypesScreen extends Screen {
 
     private static final String[][] TYPES = {
             {"chest", "Sandık"}, {"trapped_chest", "Tuzaklı Sandık"}, {"barrel", "Varil"},
-            {"ender_chest", "Ender Sandığı"},
+            {"ender_chest", "Ender Sandığı"}, {"shulker_box", "Standart Shulker"},
             {"white_shulker_box", "Beyaz Shulker"}, {"orange_shulker_box", "Turuncu Shulker"},
             {"magenta_shulker_box", "Eflatun Shulker"}, {"light_blue_shulker_box", "Açık Mavi Shulker"},
             {"yellow_shulker_box", "Sarı Shulker"}, {"lime_shulker_box", "Açık Yeşil Shulker"},

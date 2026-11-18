@@ -158,6 +158,7 @@ public final class StorageController {
         if (c.isStorageTypeSelected("trapped_chest") && state.is(Blocks.TRAPPED_CHEST)) return true;
         if (c.isStorageTypeSelected("barrel") && state.is(Blocks.BARREL)) return true;
         if (c.isStorageTypeSelected("ender_chest") && state.is(Blocks.ENDER_CHEST)) return true;
+        if (c.isStorageTypeSelected("shulker_box") && state.is(Blocks.SHULKER_BOX)) return true;
         return (c.isStorageTypeSelected("white_shulker_box") && state.is(Blocks.WHITE_SHULKER_BOX))
                 || (c.isStorageTypeSelected("orange_shulker_box") && state.is(Blocks.ORANGE_SHULKER_BOX))
                 || (c.isStorageTypeSelected("magenta_shulker_box") && state.is(Blocks.MAGENTA_SHULKER_BOX))

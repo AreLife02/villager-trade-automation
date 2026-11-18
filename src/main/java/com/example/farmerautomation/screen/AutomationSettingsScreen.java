@@ -43,10 +43,13 @@ public final class AutomationSettingsScreen extends Screen {
             b.setMessage(storageLabel(config));
         }).bounds(center - 110, y, 220, 20).build());
 
-        y += 25;
-        addRenderableWidget(Button.builder(Component.literal("Depolama türlerini seç"),
-                b -> Minecraft.getInstance().setScreen(new StorageTypesScreen(this)))
-                .bounds(center - 110, y, 220, 20).build());
+        if (config.storageEnabled) {
+            y += 25;
+            addRenderableWidget(Button.builder(Component.literal("Depolama türlerini seç"),
+                    b -> Minecraft.getInstance().setScreen(new StorageTypesScreen(this)))
+                    .bounds(center - 110, y, 220, 20).build());
+            y += 25;
+        }
 
         y += 35;
         addRenderableWidget(Button.builder(Component.literal("Geri"),
