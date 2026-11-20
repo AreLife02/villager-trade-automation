@@ -9,17 +9,26 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.trading.MerchantOffer;
+import com.example.farmerautomation.trade.OfferInfo;
+import com.example.farmerautomation.trade.OfferReader;
+import com.example.farmerautomation.trade.TradeInventory;
+import com.example.farmerautomation.trade.TradeItem;
+import com.example.farmerautomation.trade.TradePlan;
+import com.example.farmerautomation.trade.TradeProfession;
+import com.example.farmerautomation.trade.TradeRule;
+import com.example.farmerautomation.trade.TradeSelector;
+import com.example.farmerautomation.trade.VillagerScanner;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Havuç -> zümrüt takas döngüsü.
+ * Meslek ve takas kurallarına göre köylü takas döngüsü (çiftçi havuç -> zümrüt varsayılan kuraldır).
  * Yol bulma LocalNavigation ile yapılır; takas adımları ve envanter doğrulaması korunur.
  */
 public final class CycleController {
@@ -34,11 +43,12 @@ public final class CycleController {
     private static final int MAX_TRADES_PER_VILLAGER = 64;
     private static final int MAX_REFILLS = 20;
 
-    private static final int PAYMENT_SLOT_A = 0;
     private static final int RESULT_SLOT = 2;
+    private static final String CARROT_ID = "minecraft:carrot";
 
     private enum Step {
-        START, REFILL, SCAN, NEXT_VILLAGER, NAVIGATE, INTERACT, WAIT_AIM, WAIT_SCREEN, WAIT_OFFERS, SELECT_TRADE, WAIT_RESULT,
+        START, REFILL, NEXT_PROFESSION, SCAN, NEXT_VILLAGER, NAVIGATE, INTERACT, WAIT_AIM, WAIT_SCREEN, WAIT_OFFERS,
+        DECIDE, SELECT_TRADE, WAIT_RESULT,
         TAKE_RESULT, WAIT_TAKE, PLACE_RESULT, WAIT_PLACE, VERIFY_TRADE,
         CLOSE, WAIT_CLOSE, RESCAN_WAIT, STORE, FINISH, DONE
     }
@@ -48,17 +58,26 @@ public final class CycleController {
     private int selectRetries;
     private int aimAttempts;
 
-    private final List<Villager> farmers = new ArrayList<>();
+    private final List<Villager> villagers = new ArrayList<>();
     private Villager current;
     private int offerIndex;
+    /** Shop yenilemesinden sonra bir sonraki takas için gereken havuç adedi. */
     private int cost;
-    private int resultCount;
-    private int carrotsBefore;
-    private int emeraldsBefore;
+    private OfferInfo activeOffer;
+    private TradeRule activeRule;
+    private Map<String, Integer> countsBefore = new HashMap<>();
+    private ItemStack resultStack = ItemStack.EMPTY;
     private int targetSlot;
     private int tradesDone;
     private int villagerTrades;
-    private int farmerIndex;
+    private int villagerIndex;
+    private List<TradeProfession> activeProfessions = new ArrayList<>();
+    private int professionIndex;
+    private TradeProfession currentProfession;
+    private boolean foundAny;
+    private final Map<String, Integer> tradesByRule = new HashMap<>();
+    /** Bu köylü ziyaretinde sonuç vermeyen (stok bitmiş/kilitli) teklif indeksleri. */
+    private final Set<Integer> blockedOffers = new HashSet<>();
     private Step afterClose = Step.FINISH;
     private Step afterRefill = Step.SCAN;
     private int refills;
@@ -81,19 +100,26 @@ public final class CycleController {
         ticks = 0;
         selectRetries = 0;
         aimAttempts = 0;
-        farmers.clear();
+        villagers.clear();
         current = null;
         offerIndex = -1;
         cost = 0;
-        resultCount = 0;
-        carrotsBefore = 0;
-        emeraldsBefore = 0;
+        activeOffer = null;
+        activeRule = null;
+        countsBefore = new HashMap<>();
+        resultStack = ItemStack.EMPTY;
         targetSlot = -1;
         tradesDone = 0;
         villagerTrades = 0;
-        farmerIndex = 0;
+        villagerIndex = 0;
+        activeProfessions = new ArrayList<>();
+        professionIndex = -1;
+        currentProfession = null;
+        foundAny = false;
+        tradesByRule.clear();
+        blockedOffers.clear();
         afterClose = Step.FINISH;
-        afterRefill = Step.SCAN;
+        afterRefill = Step.NEXT_PROFESSION;
         refills = 0;
         finishMessage = null;
         exhausted.clear();
@@ -114,7 +140,7 @@ public final class CycleController {
     public boolean resume(Minecraft client) {
         if (step != Step.NAVIGATE) return true;
         if (current == null || !current.isAlive()) {
-            AutomationManager.INSTANCE.fail("Devam edilemedi: seçilen çiftçi artık mevcut değil.");
+            AutomationManager.INSTANCE.fail("Devam edilemedi: seçilen köylü artık mevcut değil.");
             return false;
         }
         if (!navigation.start(client, current)) {
@@ -139,12 +165,20 @@ public final class CycleController {
                     if (client.screen instanceof AbstractContainerScreen<?>) {
                         return fail(client, "Başlangıçta açık bir konteyner menüsü var.");
                     }
-                    if (InventoryManager.countCarrots(client) < RefillController.TARGET_CARROTS) {
+                    activeProfessions = resolveProfessions();
+                    if (activeProfessions.isEmpty()) {
+                        return fail(client, "Etkin takas kuralı olan meslek yok. Ayar dosyasında professionOrder ve "
+                                + "tradeRules (enabled=true) bölümlerini kontrol et.");
+                    }
+                    professionIndex = -1;
+                    foundAny = false;
+                    // Shop yalnızca çiftçi havuç -> zümrüt kuralı etkinse gerekir; diğer takaslar için havuç alınmaz.
+                    if (needsCarrotShop() && InventoryManager.countCarrots(client) < RefillController.TARGET_CARROTS) {
                         refill.reset();
-                        afterRefill = Step.SCAN;
+                        afterRefill = Step.NEXT_PROFESSION;
                         step = Step.REFILL;
                     } else {
-                        step = Step.SCAN;
+                        step = Step.NEXT_PROFESSION;
                     }
                 }
                 case REFILL -> {
@@ -164,9 +198,9 @@ public final class CycleController {
                         step = Step.FINISH;
                         return false;
                     }
-                    if (afterRefill == Step.SCAN) {
+                    if (afterRefill == Step.NEXT_PROFESSION) {
                         if (carrots <= 0) return fail(client, "Shop alımından sonra envanterde havuç yok.");
-                        step = Step.SCAN;
+                        step = Step.NEXT_PROFESSION;
                         return false;
                     }
                     if (carrots < cost) {
@@ -175,63 +209,65 @@ public final class CycleController {
                     }
                     step = Step.INTERACT;
                 }
-                case SCAN -> {
-                    farmers.clear();
-                    farmers.addAll(FarmerScanner.scanFarmers(client));
-                    AutomationManager.INSTANCE.setVillagerCount(farmers.size());
-                    if (farmers.isEmpty()) {
-                        if (AutomationConfig.get().unlimitedCycle) {
-                            ticks = 0;
-                            step = Step.RESCAN_WAIT;
-                            chat(client, "Tarama alanında çiftçi bulunamadı; 2 saniye sonra yeniden taranacak.");
-                            return false;
-                        }
-                        return fail(client, "Tarama alanında canlı çiftçi bulunamadı.");
+                case NEXT_PROFESSION -> {
+                    professionIndex++;
+                    if (professionIndex >= activeProfessions.size()) {
+                        return endOfPass(client);
                     }
-                    farmerIndex = -1;
-                    chat(client, farmers.size() + " çiftçi bulundu (en yakından uzağa); bağımsız yol bulma kullanılacak.");
+                    currentProfession = activeProfessions.get(professionIndex);
+                    step = Step.SCAN;
+                }
+                case SCAN -> {
+                    villagers.clear();
+                    villagers.addAll(VillagerScanner.scan(client, Set.of(currentProfession)));
+                    AutomationManager.INSTANCE.setVillagerCount(villagers.size());
+                    if (villagers.isEmpty()) {
+                        // Bir meslekte köylü yoksa sonsuza kadar bekleme; sıradaki mesleğe geç.
+                        chat(client, "Tarama alanında " + currentProfession.displayName()
+                                + " bulunamadı; sıradaki mesleğe geçiliyor.");
+                        step = Step.NEXT_PROFESSION;
+                        return false;
+                    }
+                    foundAny = true;
+                    villagerIndex = -1;
+                    chat(client, villagers.size() + " " + currentProfession.displayName()
+                            + " bulundu (en yakından uzağa); bağımsız yol bulma kullanılacak.");
                     step = Step.NEXT_VILLAGER;
                 }
                 case NEXT_VILLAGER -> {
                     // Her köylüden sonra kalan hedefleri oyuncunun GÜNCEL konumuna
                     // göre yeniden sırala. Dikey fark için hafif ek maliyet, gereksiz
                     // kat değişimlerini azaltır; ulaşılabilirlik yine A* tarafından belirlenir.
-                    int remainingStart = Math.min(farmers.size(), Math.max(0, farmerIndex + 1));
-                    if (remainingStart < farmers.size()) {
-                        farmers.subList(remainingStart, farmers.size()).sort((first, second) ->
+                    int remainingStart = Math.min(villagers.size(), Math.max(0, villagerIndex + 1));
+                    if (remainingStart < villagers.size()) {
+                        villagers.subList(remainingStart, villagers.size()).sort((first, second) ->
                                 Double.compare(routePriority(client, first), routePriority(client, second)));
                     }
 
-                    farmerIndex++;
-                    while (farmerIndex < farmers.size()
-                            && (exhausted.contains(farmers.get(farmerIndex).getUUID())
-                            || !farmers.get(farmerIndex).isAlive())) {
-                        farmerIndex++;
+                    villagerIndex++;
+                    while (villagerIndex < villagers.size()
+                            && (exhausted.contains(villagers.get(villagerIndex).getUUID())
+                            || !villagers.get(villagerIndex).isAlive())) {
+                        villagerIndex++;
                     }
-                    if (farmerIndex >= farmers.size()) {
-                        if (AutomationConfig.get().unlimitedCycle) {
-                            exhausted.clear();
-                            ticks = 0;
-                            step = Step.RESCAN_WAIT;
-                            chat(client, "Listedeki çiftçiler tamamlandı (" + tradesDone
-                                    + " takas). Sınırsız döngü için yeniden taranıyor.");
-                        } else {
-                            finishMessage = "Döngü bitti: " + tradesDone + " takas yapıldı, sıradaki çiftçi kalmadı.";
-                            afterStore = Step.FINISH;
-                            step = Step.STORE;
-                        }
+                    if (villagerIndex >= villagers.size()) {
+                        // Bu mesleğin köylüleri bitti: kullanıcının sıradaki mesleğine geç.
+                        step = Step.NEXT_PROFESSION;
                         return false;
                     }
-                    current = farmers.get(farmerIndex);
+                    current = villagers.get(villagerIndex);
                     villagerTrades = 0;
-                    AutomationManager.INSTANCE.setCurrentVillagerIndex(farmerIndex);
-                    chat(client, "Çiftçi " + (farmerIndex + 1) + "/" + farmers.size() + " ile devam ediliyor.");
+                    tradesByRule.clear();
+                    blockedOffers.clear();
+                    AutomationManager.INSTANCE.setCurrentVillagerIndex(villagerIndex);
+                    chat(client, currentProfession.displayName() + " " + (villagerIndex + 1) + "/" + villagers.size()
+                            + " ile devam ediliyor.");
                     if (FarmerScanner.isAccessible(client, current)) {
                         step = Step.INTERACT;
                     } else {
                         if (!navigation.start(client, current)) {
                             exhausted.add(current.getUUID());
-                            chat(client, "Çiftçiye güvenli yol bulunamadı; bu köylü atlanıyor: "
+                            chat(client, "Köylüye güvenli yol bulunamadı; bu köylü atlanıyor: "
                                     + navigation.getLastError());
                             navigation.stop();
                             step = Step.NEXT_VILLAGER;
@@ -266,7 +302,7 @@ public final class CycleController {
                 case INTERACT -> {
                     if (!FarmerScanner.isAccessible(client, current)) {
                         exhausted.add(current.getUUID());
-                        chat(client, "Çiftçi erişilemez oldu; atlanıyor.");
+                        chat(client, "Köylü erişilemez oldu; atlanıyor.");
                         step = Step.NEXT_VILLAGER;
                         return false;
                     }
@@ -278,7 +314,7 @@ public final class CycleController {
                 }
                 case WAIT_AIM -> {
                     if (current == null || !current.isAlive()) {
-                        return fail(client, "Etkileşimden önce seçilen çiftçi artık mevcut değil.");
+                        return fail(client, "Etkileşimden önce seçilen köylü artık mevcut değil.");
                     }
                     // Kamera açıları değişince Minecraft'ın crosshair hitResult değeri aynı
                     // tick içinde güncellenmeyebilir. En az iki client tick bekle.
@@ -292,7 +328,7 @@ public final class CycleController {
                         lastInteraction = attempt.describe()
                                 + " / anaEl=" + client.player.getMainHandItem().getItem()
                                 + " / yanEl=" + client.player.getOffhandItem().getItem();
-                        chat(client, "Nişangâh doğrulandı: hedef çiftçi, mesafe "
+                        chat(client, "Nişangâh doğrulandı: hedef köylü, mesafe "
                                 + String.format(java.util.Locale.ROOT, "%.2f", client.player.distanceTo(current))
                                 + " blok. Vanilla etkileşim akışı gönderildi: " + lastInteraction);
                         ticks = 0;
@@ -323,7 +359,7 @@ public final class CycleController {
                         ticks = 0;
                         step = Step.WAIT_OFFERS;
                     } else if (client.screen instanceof AbstractContainerScreen<?> other) {
-                        return fail(client, "Çiftçi takas menüsü yerine farklı bir menü açtı: "
+                        return fail(client, "Köylü takas menüsü yerine farklı bir menü açtı: "
                                 + other.getClass().getSimpleName() + " / başlık: " + other.getTitle().getString());
                     } else if (++ticks > SCREEN_TIMEOUT) {
                         return fail(client, "Takas menüsü zamanında açılmadı (etkileşim sonucu: " + lastInteraction
@@ -339,8 +375,37 @@ public final class CycleController {
                         if (++ticks > OFFERS_TIMEOUT) return fail(client, "Takas listesi zamanında gelmedi.");
                         return false;
                     }
-                    if (!locateOffer(client, menu)) return false;
-                    step = Step.SELECT_TRADE;
+                    if (VillagerScanner.professionOf(current) != currentProfession) {
+                        villagerDone(client, "köylünün mesleği değişmiş");
+                        return false;
+                    }
+                    step = Step.DECIDE;
+                }
+                case DECIDE -> {
+                    if (!(client.screen instanceof MerchantScreen screen)) {
+                        return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
+                    }
+                    MerchantMenu menu = screen.getMenu();
+                    if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
+                        villagerDone(client, "güvenlik sınırı (" + MAX_TRADES_PER_VILLAGER + " takas) doldu");
+                        return false;
+                    }
+                    List<OfferInfo> offers = OfferReader.read(menu.getOffers());
+                    Map<String, Integer> available = TradeInventory.snapshot(client, menu);
+                    TradeSelector.Decision decision = TradeSelector.decide(currentProfession.id(), offers,
+                            AutomationConfig.get().tradeRules, tradesByRule, blockedOffers, available,
+                            CycleController::isCarrotRefillRule);
+                    if (decision instanceof TradeSelector.Trade trade) {
+                        activeOffer = trade.offer();
+                        activeRule = trade.rule();
+                        offerIndex = activeOffer.index();
+                        step = Step.SELECT_TRADE;
+                    } else if (decision instanceof TradeSelector.Refill refillDecision) {
+                        cost = refillDecision.offer().primary().count();
+                        notEnoughCarrots(client, available.getOrDefault(CARROT_ID, 0));
+                    } else if (decision instanceof TradeSelector.Done done) {
+                        villagerDone(client, done.kind().message());
+                    }
                 }
                 case SELECT_TRADE -> {
                     if (!(client.screen instanceof MerchantScreen screen)) {
@@ -350,18 +415,8 @@ public final class CycleController {
                             && tickCounter - lastSelectTick < Math.max(1, AutomationConfig.get().tradeIntervalTicks)) {
                         return false;
                     }
-                    int carrots = carrotsTotal(client, screen.getMenu());
-                    if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
-                        villagerDone(client, "güvenlik sınırı (" + MAX_TRADES_PER_VILLAGER + " takas) doldu");
-                        return false;
-                    }
-                    if (carrots < cost) {
-                        notEnoughCarrots(client, carrots);
-                        return false;
-                    }
-                    carrotsBefore = carrots;
+                    countsBefore = TradeInventory.snapshot(client, screen.getMenu());
                     selectRetries = 0;
-                    emeraldsBefore = InventoryManager.countEmeralds(client);
                     sendSelect(client, screen.getMenu());
                     lastSelectTick = tickCounter;
                     ticks = 0;
@@ -373,8 +428,11 @@ public final class CycleController {
                     }
                     MerchantMenu menu = screen.getMenu();
                     ItemStack result = menu.getSlot(RESULT_SLOT).getItem();
+                    TradeItem output = activeOffer.output();
                     ticks++;
-                    if (ticks >= 1 && !result.isEmpty() && result.is(Items.EMERALD) && result.getCount() == resultCount) {
+                    if (ticks >= 1 && !result.isEmpty() && OfferReader.baseId(result).equals(output.baseId())
+                            && result.getCount() == output.count()) {
+                        resultStack = result.copy();
                         step = Step.TAKE_RESULT;
                         return false;
                     }
@@ -382,7 +440,13 @@ public final class CycleController {
                         if (++selectRetries > MAX_SELECT_RETRIES) {
                             String reason = diagnoseNoResult(client, menu);
                             if (reason == null) {
-                                villagerDone(client, "stok bitti ya da takas kilitli (sunucu sonuç vermedi)");
+                                // Giriş eşyaları yerleşti ama sonuç yok: bu teklifin stoğu bitti ya da kilitli.
+                                // Önce aynı köylüdeki sıradaki uygun takasa geç.
+                                blockedOffers.add(offerIndex);
+                                chat(client, "Teklif " + (offerIndex + 1) + " sonuç vermedi (stok bitti ya da kilitli); "
+                                        + "sıradaki takasa geçiliyor.");
+                                ticks = 0;
+                                step = Step.DECIDE;
                                 return false;
                             }
                             return fail(client, reason);
@@ -397,7 +461,10 @@ public final class CycleController {
                     }
                     MerchantMenu menu = screen.getMenu();
                     targetSlot = findPlaceSlot(menu);
-                    if (targetSlot < 0) return fail(client, "Envanterde zümrüt için yer yok; takas sonucu alınmadı.");
+                    if (targetSlot < 0) {
+                        return fail(client, "Envanterde " + activeOffer.output().name()
+                                + " için yer yok; takas sonucu alınmadı.");
+                    }
                     client.gameMode.handleInventoryMouseClick(menu.containerId, RESULT_SLOT, 0, ClickType.PICKUP, client.player);
                     ticks = 0;
                     // Sonuç slotundan alma ve envantere bırakma tıklamalarını ayrı
@@ -410,15 +477,15 @@ public final class CycleController {
                         return fail(client, "Takas menüsü sonuç alınırken kapandı.");
                     }
                     ItemStack carried = screen.getMenu().getCarried();
-                    if (!carried.isEmpty() && carried.is(Items.EMERALD)) {
+                    if (!carried.isEmpty() && OfferReader.baseId(carried).equals(activeOffer.output().baseId())) {
                         step = Step.PLACE_RESULT;
                     } else if (++ticks > CLICK_TIMEOUT) {
-                        return fail(client, "Sonuç slotundan zümrüt alınamadı.");
+                        return fail(client, "Sonuç slotundan " + activeOffer.output().name() + " alınamadı.");
                     }
                 }
                 case PLACE_RESULT -> {
                     if (!(client.screen instanceof MerchantScreen screen)) {
-                        return fail(client, "Takas menüsü zümrüt yerleştirilirken kapandı.");
+                        return fail(client, "Takas menüsü sonuç yerleştirilirken kapandı.");
                     }
                     MerchantMenu menu = screen.getMenu();
                     client.gameMode.handleInventoryMouseClick(menu.containerId, targetSlot, 0, ClickType.PICKUP, client.player);
@@ -427,36 +494,44 @@ public final class CycleController {
                 }
                 case WAIT_PLACE -> {
                     if (!(client.screen instanceof MerchantScreen screen)) {
-                        return fail(client, "Takas menüsü zümrüt yerleştirilirken kapandı.");
+                        return fail(client, "Takas menüsü sonuç yerleştirilirken kapandı.");
                     }
                     if (screen.getMenu().getCarried().isEmpty()) {
                         ticks = 0;
                         step = Step.VERIFY_TRADE;
                     } else if (++ticks > CLICK_TIMEOUT) {
-                        return fail(client, "Zümrüt envantere yerleştirilemedi (imleçte kaldı).");
+                        return fail(client, activeOffer.output().name() + " envantere yerleştirilemedi (imleçte kaldı).");
                     }
                 }
                 case VERIFY_TRADE -> {
                     if (!(client.screen instanceof MerchantScreen verifyScreen)) {
                         return fail(client, "Takas menüsü doğrulama sırasında kapandı.");
                     }
-                    int carrots = carrotsTotal(client, verifyScreen.getMenu());
-                    int emeralds = InventoryManager.countEmeralds(client);
-                    boolean carrotsOk = carrots == carrotsBefore - cost;
-                    boolean emeraldsOk = emeralds == emeraldsBefore + resultCount;
-                    if (carrotsOk && emeraldsOk) {
+                    Map<String, Integer> after = TradeInventory.snapshot(client, verifyScreen.getMenu());
+                    String mismatch = null;
+                    for (Map.Entry<String, Integer> expected : activeOffer.expectedDelta().entrySet()) {
+                        int before = countsBefore.getOrDefault(expected.getKey(), 0);
+                        int now = after.getOrDefault(expected.getKey(), 0);
+                        if (now != before + expected.getValue()) {
+                            mismatch = expected.getKey() + " " + before + " -> " + now
+                                    + " (beklenen " + (before + expected.getValue()) + ")";
+                            break;
+                        }
+                    }
+                    if (mismatch == null) {
                         tradesDone++;
                         villagerTrades++;
+                        tradesByRule.merge(activeRule.key(), 1, Integer::sum);
                         // Per-trade inventory deltas are intentionally kept out of chat.
                         // Villager completion reports the compact trade count instead.
-                        AutomationManager.INSTANCE.addEmeralds(resultCount);
+                        if (activeOffer.direction() == com.example.farmerautomation.trade.TradeDirection.EARN) {
+                            AutomationManager.INSTANCE.addEmeralds(activeOffer.output().count());
+                        }
                         ticks = 0;
                         selectRetries = 0;
-                        step = Step.SELECT_TRADE;
+                        step = Step.DECIDE;
                     } else if (++ticks > VERIFY_TIMEOUT) {
-                        return fail(client, "Takas doğrulanamadı: havuç " + carrotsBefore + " -> " + carrots
-                                + " (beklenen " + (carrotsBefore - cost) + "), zümrüt " + emeraldsBefore + " -> "
-                                + emeralds + " (beklenen " + (emeraldsBefore + resultCount) + ").");
+                        return fail(client, "Takas doğrulanamadı: " + mismatch + ".");
                     }
                 }
                 case CLOSE -> {
@@ -498,7 +573,7 @@ public final class CycleController {
                 case RESCAN_WAIT -> {
                     if (++ticks >= 40) {
                         ticks = 0;
-                        step = Step.SCAN;
+                        step = Step.NEXT_PROFESSION;
                     }
                 }
                 case FINISH -> {
@@ -520,33 +595,59 @@ public final class CycleController {
         return FarmerScanner.reachDistance(client, villager) + verticalDifference * 0.25;
     }
 
-    private boolean locateOffer(Minecraft client, MerchantMenu menu) {
-        int index = 0;
-        for (MerchantOffer offer : menu.getOffers()) {
-            ItemStack costA = offer.getCostA();
-            ItemStack costB = offer.getCostB();
-            ItemStack result = offer.getResult();
+    private List<TradeProfession> resolveProfessions() {
+        AutomationConfig config = AutomationConfig.get();
+        List<String> ids = TradePlan.activeProfessions(config.professionOrder, config.tradeRules,
+                id -> TradeProfession.fromId(id) != null);
+        List<TradeProfession> result = new ArrayList<>();
+        for (String id : ids) result.add(TradeProfession.fromId(id));
+        return result;
+    }
 
-            if (costA.is(Items.CARROT) && costB.isEmpty() && result.is(Items.EMERALD)) {
-                if (offer.isOutOfStock()) {
-                    villagerDone(client, "havuç -> zümrüt stoğu bitmiş");
-                    return false;
-                }
-                offerIndex = index;
-                cost = costA.getCount();
-                resultCount = result.getCount();
-                chat(client, "Takas bulundu: " + cost + " havuç -> " + resultCount + " zümrüt (teklif " + (index + 1) + ").");
-                return true;
-            }
-            index++;
+    /** Shop havuç alımı yalnızca etkin çiftçi havuç -> zümrüt kuralı varsa gerekir. */
+    private boolean needsCarrotShop() {
+        if (!activeProfessions.contains(TradeProfession.FARMER)) return false;
+        for (TradeRule rule : AutomationConfig.get().tradeRules) {
+            if (rule.enabled && isCarrotRefillRule(rule)) return true;
         }
-        villagerDone(client, "havuç -> zümrüt takası yok");
+        return false;
+    }
+
+    private static boolean isCarrotRefillRule(TradeRule rule) {
+        return TradeProfession.FARMER.id().equalsIgnoreCase(rule.profession)
+                && com.example.farmerautomation.trade.TradeDirection.EARN.name().equals(rule.direction)
+                && CARROT_ID.equals(rule.itemId);
+    }
+
+    /** Bütün meslekler tarandı: sınırsız döngüde yeniden başla, değilse bitir. */
+    private boolean endOfPass(Minecraft client) {
+        if (AutomationConfig.get().unlimitedCycle) {
+            exhausted.clear();
+            professionIndex = -1;
+            ticks = 0;
+            step = Step.RESCAN_WAIT;
+            if (foundAny) {
+                chat(client, "Seçili meslekler tamamlandı (" + tradesDone
+                        + " takas). Sınırsız döngü için yeniden taranıyor.");
+            } else {
+                chat(client, "Tarama alanında seçili mesleklerden köylü bulunamadı; 2 saniye sonra yeniden taranacak.");
+            }
+            foundAny = false;
+            return false;
+        }
+        if (!foundAny) {
+            return fail(client, "Tarama alanında seçili mesleklerden canlı köylü bulunamadı.");
+        }
+        finishMessage = "Döngü bitti: " + tradesDone + " takas yapıldı, sıradaki köylü kalmadı.";
+        afterStore = Step.FINISH;
+        step = Step.STORE;
         return false;
     }
 
     private void villagerDone(Minecraft client, String reason) {
         if (current != null) exhausted.add(current.getUUID());
-        chat(client, "Çiftçi " + (farmerIndex + 1) + " bitti (" + reason + "); " + villagerTrades + " takas yapıldı.");
+        chat(client, currentProfession.displayName() + " " + (villagerIndex + 1) + " bitti (" + reason + "); "
+                + villagerTrades + " takas yapıldı.");
 
         // Depolamaya her köylüden sonra gitme. Yalnızca envanter neredeyse
         // dolduğunda, köylü menüsü kapandıktan sonra zümrütleri boşalt.
@@ -576,20 +677,12 @@ public final class CycleController {
             return;
         }
         chat(client, "Havuç bir sonraki takasa yetmiyor (" + carrots + " var, " + cost
-                + " gerekli); Shop'a dönülüyor. Çiftçi " + (farmerIndex + 1) + " ile devam edilecek.");
+                + " gerekli); Shop'a dönülüyor. " + currentProfession.displayName() + " " + (villagerIndex + 1)
+                + " ile devam edilecek.");
         refill.reset();
         afterRefill = Step.INTERACT;
         afterClose = Step.REFILL;
         step = Step.CLOSE;
-    }
-
-    private static int carrotsTotal(Minecraft client, MerchantMenu menu) {
-        int total = InventoryManager.countCarrots(client);
-        for (int slot = 0; slot <= 1; slot++) {
-            ItemStack stack = menu.getSlot(slot).getItem();
-            if (stack.is(Items.CARROT)) total += stack.getCount();
-        }
-        return total;
     }
 
     private void sendSelect(Minecraft client, MerchantMenu menu) {
@@ -598,30 +691,44 @@ public final class CycleController {
         client.player.connection.send(new ServerboundSelectTradePacket(offerIndex));
     }
 
+    /**
+     * Sonuç gelmediğinde nedeni bulur. null: giriş eşyaları takas slotlarına yerleşmiş, yani teklifin stoğu
+     * bitmiş ya da kilitli. Aksi halde durdurmayı gerektiren bir hata mesajı döner.
+     */
     private String diagnoseNoResult(Minecraft client, MerchantMenu menu) {
-        ItemStack payment = menu.getSlot(PAYMENT_SLOT_A).getItem();
-        int carrots = carrotsTotal(client, menu);
+        List<TradeItem> inputs = activeOffer.inputs();
+        boolean allPlaced = true;
+        for (int slot = 0; slot < inputs.size(); slot++) {
+            ItemStack placed = menu.getSlot(slot).getItem();
+            TradeItem needed = inputs.get(slot);
+            if (placed.isEmpty() || !OfferReader.baseId(placed).equals(needed.baseId())
+                    || placed.getCount() < needed.count()) {
+                allPlaced = false;
+            }
+        }
+        if (allPlaced) return null;
 
-        if (payment.is(Items.CARROT) && payment.getCount() >= cost) {
-            return null; // havuç yerleşti ama sonuç yok: stok bitti / kilitli
+        Map<String, Integer> have = TradeInventory.snapshot(client, menu);
+        TradeSelector.Kind shortage = TradeSelector.shortage(activeOffer, have);
+        if (shortage != null) {
+            return "Takas girişleri yetersiz (" + shortage.message() + "): " + String.join(" + ", activeOffer.describeInputs()) + ".";
         }
-        if (carrots < cost) {
-            return "Havuç yetmiyor: " + carrots + " var, takas " + cost + " istiyor.";
-        }
-        return "Sunucu takas seçimine yanıt vermedi (havuç takas slotuna taşınmadı).";
+        return "Sunucu takas seçimine yanıt vermedi (giriş eşyaları takas slotlarına taşınmadı).";
     }
 
-    /** Menüdeki oyuncu envanteri slotları arasında zümrüt için boş ya da yer olan slotu bulur. */
+    /** Menüdeki oyuncu envanteri slotları arasında sonuç için boş ya da yığına uygun slotu bulur. */
     private int findPlaceSlot(MerchantMenu menu) {
         int start = Math.max(0, menu.slots.size() - 36);
         int firstEmpty = -1;
+        int resultCount = activeOffer.output().count();
 
         for (int i = start; i < menu.slots.size(); i++) {
             ItemStack stack = menu.getSlot(i).getItem();
 
             if (stack.isEmpty()) {
                 if (firstEmpty < 0) firstEmpty = i;
-            } else if (stack.is(Items.EMERALD) && stack.getCount() + resultCount <= stack.getMaxStackSize()) {
+            } else if (ItemStack.isSameItemSameComponents(stack, resultStack)
+                    && stack.getCount() + resultCount <= stack.getMaxStackSize()) {
                 return i;
             }
         }
