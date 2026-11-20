@@ -32,6 +32,11 @@ public final class AutomationConfig {
     public int storageSearchRadius = 8;
     public Set<String> selectedStorageTypes = new LinkedHashSet<>(List.of("chest"));
 
+    /** Seçili meslekler, öncelik sırasıyla (ilk = en yüksek öncelik). Varsayılan yalnızca çiftçi. */
+    public List<String> professionOrder = new java.util.ArrayList<>(List.of("farmer"));
+    /** Kullanıcının seçtiği takas kuralları; her mesleğin kuralları kendi içinde liste sırasıyla önceliklidir. */
+    public List<com.example.farmerautomation.trade.TradeRule> tradeRules = new java.util.ArrayList<>();
+
     private static AutomationConfig instance;
 
     private AutomationConfig() { }
@@ -57,6 +62,8 @@ public final class AutomationConfig {
             if (loaded.selectedStorageTypes == null) loaded.selectedStorageTypes = new LinkedHashSet<>(List.of("chest"));
             loaded.villagerSearchRadius = Math.max(8, Math.min(256, loaded.villagerSearchRadius));
             loaded.storageSearchRadius = Math.max(1, Math.min(32, loaded.storageSearchRadius));
+            if (loaded.professionOrder == null) loaded.professionOrder = new java.util.ArrayList<>(List.of("farmer"));
+            if (loaded.tradeRules == null) loaded.tradeRules = new java.util.ArrayList<>();
             instance = loaded;
             ErrorHandler.info("Ayarlar yüklendi: " + file);
         } catch (IOException | RuntimeException exception) {

@@ -6,6 +6,7 @@ on:
       - main
       - phase-a-diagnostics
       - fix/storage-fallback-ui
+      - feature/trade-infrastructure
   pull_request:
     branches:
       - main
