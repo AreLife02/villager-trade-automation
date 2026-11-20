@@ -35,7 +35,8 @@ public final class AutomationConfig {
     /** Seçili meslekler, öncelik sırasıyla (ilk = en yüksek öncelik). Varsayılan yalnızca çiftçi. */
     public List<String> professionOrder = new java.util.ArrayList<>(List.of("farmer"));
     /** Kullanıcının seçtiği takas kuralları; her mesleğin kuralları kendi içinde liste sırasıyla önceliklidir. */
-    public List<com.example.farmerautomation.trade.TradeRule> tradeRules = new java.util.ArrayList<>();
+    public List<com.example.farmerautomation.trade.TradeRule> tradeRules =
+            com.example.farmerautomation.trade.DefaultTradeRules.create();
 
     private static AutomationConfig instance;
 
@@ -63,7 +64,10 @@ public final class AutomationConfig {
             loaded.villagerSearchRadius = Math.max(8, Math.min(256, loaded.villagerSearchRadius));
             loaded.storageSearchRadius = Math.max(1, Math.min(32, loaded.storageSearchRadius));
             if (loaded.professionOrder == null) loaded.professionOrder = new java.util.ArrayList<>(List.of("farmer"));
-            if (loaded.tradeRules == null) loaded.tradeRules = new java.util.ArrayList<>();
+            if (loaded.tradeRules == null || loaded.tradeRules.isEmpty()) {
+                loaded.tradeRules = com.example.farmerautomation.trade.DefaultTradeRules.create();
+                loaded.save();
+            }
             instance = loaded;
             ErrorHandler.info("Ayarlar yüklendi: " + file);
         } catch (IOException | RuntimeException exception) {

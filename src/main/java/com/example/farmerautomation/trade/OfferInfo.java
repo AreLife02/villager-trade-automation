@@ -1,66 +1,92 @@
 package com.example.farmerautomation.trade;
 
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.trading.MerchantOffer;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Köylünün oyun içindeki gerçek teklifinin anlık görüntüsü.
- * Fiyatlar getCostA/getCostB üzerinden okunur, yani indirimler dahildir.
+ * Köylünün oyun içindeki gerçek teklifinin anlık görüntüsü (Minecraft sınıflarından bağımsız).
+ * Girişler teklifteki sırayla tutulur: inputs[0] = takas slotu 0, inputs[1] = takas slotu 1.
  */
 public record OfferInfo(
         int index,
         TradeDirection direction,
-        Item item,
-        String itemId,
-        String itemName,
-        int itemCount,
-        int emeraldCount,
-        Item secondaryItem,
-        int secondaryCount,
+        List<TradeItem> inputs,
+        TradeItem output,
         boolean outOfStock,
         int uses,
         int maxUses
 ) {
-    /** Teklif zümrüt ticareti değilse (ör. kitap + zümrüt -> büyülü kitap dahil olmayan türler) null döner. */
-    public static OfferInfo from(int index, MerchantOffer offer) {
-        ItemStack costA = offer.getCostA();
-        ItemStack costB = offer.getCostB();
-        ItemStack result = offer.getResult();
-        if (costA.isEmpty() || result.isEmpty()) return null;
+    public static final String EMERALD = "minecraft:emerald";
 
-        boolean resultEmerald = result.is(Items.EMERALD);
-        boolean aEmerald = costA.is(Items.EMERALD);
-        boolean bEmerald = !costB.isEmpty() && costB.is(Items.EMERALD);
-
-        if (resultEmerald && !aEmerald && !bEmerald && costB.isEmpty()) {
-            // eşya -> zümrüt
-            return build(index, TradeDirection.EARN, costA, costA.getCount(), result.getCount(),
-                    Items.AIR, 0, offer);
+    /** Zümrüt ticareti olmayan veya anlaşılamayan teklifler için null döner. */
+    public static OfferInfo classify(int index, List<TradeItem> inputs, TradeItem output,
+                                     boolean outOfStock, int uses, int maxUses) {
+        if (inputs == null || inputs.isEmpty() || inputs.size() > 2 || output == null || output.count() <= 0) {
+            return null;
         }
-        if (!resultEmerald && (aEmerald || bEmerald)) {
-            // zümrüt (+ isteğe bağlı ikinci eşya) -> eşya
-            ItemStack emeraldStack = aEmerald ? costA : costB;
-            ItemStack other = aEmerald ? costB : costA;
-            Item secondary = other.isEmpty() ? Items.AIR : other.getItem();
-            return build(index, TradeDirection.SPEND, result, result.getCount(), emeraldStack.getCount(),
-                    secondary, other.isEmpty() ? 0 : other.getCount(), offer);
+        boolean anyEmeraldInput = false;
+        for (TradeItem input : inputs) {
+            if (input.count() <= 0) return null;
+            if (EMERALD.equals(input.baseId())) anyEmeraldInput = true;
+        }
+        TradeDirection direction;
+        if (EMERALD.equals(output.baseId())) {
+            if (anyEmeraldInput) return null;
+            direction = TradeDirection.EARN;
+        } else if (anyEmeraldInput) {
+            direction = TradeDirection.SPEND;
+        } else {
+            return null;
+        }
+        return new OfferInfo(index, direction, List.copyOf(inputs), output, outOfStock, uses, maxUses);
+    }
+
+    /** EARN: verilen ana eşya (ilk zümrüt dışı giriş). SPEND: alınan ürün. */
+    public TradeItem primary() {
+        if (direction == TradeDirection.SPEND) return output;
+        for (TradeItem input : inputs) {
+            if (!EMERALD.equals(input.baseId())) return input;
+        }
+        return inputs.get(0);
+    }
+
+    /** Ana eşya dışında gereken zümrüt olmayan ek giriş (ör. zümrüt + kitap -> büyülü kitap'taki kitap). */
+    public TradeItem secondary() {
+        boolean skippedPrimary = direction == TradeDirection.SPEND;
+        TradeItem primary = primary();
+        for (TradeItem input : inputs) {
+            if (EMERALD.equals(input.baseId())) continue;
+            if (!skippedPrimary && input == primary) {
+                skippedPrimary = true;
+                continue;
+            }
+            return input;
         }
         return null;
     }
 
-    private static OfferInfo build(int index, TradeDirection direction, ItemStack itemStack, int itemCount,
-                                   int emeraldCount, Item secondary, int secondaryCount, MerchantOffer offer) {
-        Item item = itemStack.getItem();
-        return new OfferInfo(index, direction, item, BuiltInRegistries.ITEM.getKey(item).toString(),
-                itemStack.getHoverName().getString(), itemCount, emeraldCount, secondary, secondaryCount,
-                offer.isOutOfStock(), offer.getUses(), offer.getMaxUses());
+    /** Takas için gereken toplam adet (kayıt kimliğine göre; aynı eşya iki girişte olabilir). */
+    public Map<String, Integer> needs() {
+        Map<String, Integer> needs = new LinkedHashMap<>();
+        for (TradeItem input : inputs) needs.merge(input.baseId(), input.count(), Integer::sum);
+        return needs;
+    }
+
+    /** Takas sonucunda envanterde beklenen net değişim (kayıt kimliği -> artış/azalış). */
+    public Map<String, Integer> expectedDelta() {
+        Map<String, Integer> delta = new LinkedHashMap<>();
+        for (TradeItem input : inputs) delta.merge(input.baseId(), -input.count(), Integer::sum);
+        delta.merge(output.baseId(), output.count(), Integer::sum);
+        return delta;
     }
 
     public int remainingStock() { return Math.max(0, maxUses - uses); }
 
-    /** Ayar dosyasındaki kural anahtarı: "yön:eşya-kimliği". */
-    public String ruleKey() { return direction.name() + ":" + itemId; }
+    public List<String> describeInputs() {
+        List<String> parts = new ArrayList<>();
+        for (TradeItem input : inputs) parts.add(input.count() + " " + input.name());
+        return parts;
+    }
 }
