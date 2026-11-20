@@ -82,8 +82,6 @@ public record OfferInfo(
         return delta;
     }
 
-    public int remainingStock() { return Math.max(0, maxUses - uses); }
-
     public List<String> describeInputs() {
         List<String> parts = new ArrayList<>();
         for (TradeItem input : inputs) parts.add(input.count() + " " + input.name());
