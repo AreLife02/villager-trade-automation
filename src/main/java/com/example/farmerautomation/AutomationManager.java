@@ -20,6 +20,7 @@ public final class AutomationManager {
     private int currentVillagerIndex = -1;
     private int villagerCount = 0;
     private int totalEmeralds = 0;
+    private int currentTradeStockRemaining = -1;
     private int carrotsInInventory = -1;
     private int shulkerUsedSlots = -1;
     private int shulkerTotalSlots = -1;
@@ -32,6 +33,7 @@ public final class AutomationManager {
     public synchronized UUID getActiveVillagerId() { return cycleController.getCurrentVillagerId(); }
     public synchronized int getVillagerCount() { return villagerCount; }
     public synchronized int getTotalEmeralds() { return totalEmeralds; }
+    public synchronized int getCurrentTradeStockRemaining() { return currentTradeStockRemaining; }
     public synchronized int getCarrotsInInventory() { return carrotsInInventory; }
     public synchronized int getShulkerUsedSlots() { return shulkerUsedSlots; }
     public synchronized int getShulkerTotalSlots() { return shulkerTotalSlots; }
@@ -43,6 +45,7 @@ public final class AutomationManager {
         state = AutomationState.CYCLE;
         stateBeforePause = AutomationState.CYCLE;
         currentVillagerIndex = -1;
+        currentTradeStockRemaining = -1;
         cycleController.reset();
         ErrorHandler.info("Otomatik çiftçi takası başlatıldı. Hedef: havuçları zümrüte çevirmek.");
     }
@@ -173,6 +176,9 @@ public final class AutomationManager {
 
     public synchronized void setVillagerCount(int count) { if (count >= 0) villagerCount = count; }
     public synchronized void setCurrentVillagerIndex(int index) { currentVillagerIndex = index; }
+    public synchronized void setCurrentTradeStockRemaining(int remaining) {
+        if (remaining >= -1) currentTradeStockRemaining = remaining;
+    }
     public synchronized void addEmeralds(int amount) { if (amount > 0) totalEmeralds += amount; }
     public synchronized void setCarrotsInInventory(int amount) { if (amount >= 0) carrotsInInventory = amount; }
 
