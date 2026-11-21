@@ -36,6 +36,11 @@ public final class AutomationScreen extends Screen {
                 button -> manager.resume()).bounds(right, y, 100, 20).build());
 
         y += 27;
+        this.addRenderableWidget(Button.builder(Component.literal("Köylüleri Yönet"),
+                button -> Minecraft.getInstance().setScreen(new VillagerManagementScreen(this)))
+                .bounds(centerX - 110, y, 220, 20).build());
+
+        y += 27;
         this.addRenderableWidget(Button.builder(Component.literal("Ayarlar"),
                 button -> Minecraft.getInstance().setScreen(new AutomationSettingsScreen(this)))
                 .bounds(centerX - 75, y, 150, 20).build());
