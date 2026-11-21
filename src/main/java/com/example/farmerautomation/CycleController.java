@@ -217,8 +217,7 @@ public final class CycleController {
                     currentProfession = activeProfessions.get(professionIndex);
                     step = Step.SCAN;
                 }
-                case SCAN -> {
-                    villagers.clear();
+                case SCAN -> {                    villagers.clear();
                     // Bu geliştirme aşamasında yalnızca çiftçi köylüler işlenir.
                     // Kullanıcı seçimi/meslek sırası, uygun çiftçilerin taranmasını engellemez.
                     villagers.addAll(FarmerScanner.scanFarmers(client));
@@ -437,8 +436,7 @@ public final class CycleController {
                 }
                 case TAKE_RESULT -> {
                     if (!(client.screen instanceof MerchantScreen screen)) {
-                        return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
-                    }
+                        return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");                    }
                     MerchantMenu menu = screen.getMenu();
                     targetSlot = findPlaceSlot(menu);
                     if (targetSlot < 0) {
@@ -479,34 +477,20 @@ public final class CycleController {
                         return fail(client, "Takas menüsü sonuç yerleştirilirken kapandı.");
                     }
                     if (screen.getMenu().getCarried().isEmpty()) {
-                        Map<String, Integer> after = TradeInventory.snapshot(client, screen.getMenu());
-                        String mismatch = null;
-                        for (Map.Entry<String, Integer> expected : activeOffer.expectedDelta().entrySet()) {
-                            int before = countsBefore.getOrDefault(expected.getKey(), 0);
-                            int now = after.getOrDefault(expected.getKey(), 0);
-                            if (now != before + expected.getValue()) {
-                                mismatch = expected.getKey() + " " + before + " -> " + now
-                                        + " (beklenen " + (before + expected.getValue()) + ")";
-                                break;
-                            }
-                        }
-                        if (mismatch == null) {
-                            AutomationManager.INSTANCE.markVillagerTraded(current.getUUID());
-                            tradesDone++;
-                            villagerTrades++;
-                            tradesByRule.merge(activeRule.key(), 1, Integer::sum);
-                            if (activeOffer.direction() == com.example.farmerautomation.trade.TradeDirection.EARN) {
-                                AutomationManager.INSTANCE.addEmeralds(activeOffer.output().count());
-                            }
+                        MerchantMenu menu = screen.getMenu();
+                        Map<String, Integer> after = TradeInventory.snapshot(client, menu);
+                        int confirmed = confirmedTradeCount(menu, after);
+                        if (confirmed > 0) {
+                            recordConfirmedTrades(client, confirmed);
                             ticks = 0;
                             selectRetries = 0;
                             AutomationManager.INSTANCE.setCarrotsInInventory(InventoryManager.countCarrots(client));
-                            // Re-evaluate and queue the next trade in this same client tick.
-                            // This removes one idle tick between every confirmed trade.
+                            // QUICK_MOVE can complete several identical trades in one action.
+                            // Count the server-confirmed uses and immediately choose the next offer.
                             step = Step.DECIDE;
                             decide(client);
                         } else if (++ticks > VERIFY_TIMEOUT) {
-                            return fail(client, "Takas doğrulanamadı: " + mismatch + ".");
+                            return fail(client, "Takas doğrulanamadı: " + describeTradeDelta(after) + ".");
                         }
                     } else if (++ticks > CLICK_TIMEOUT) {
                         return fail(client, activeOffer.output().name() + " envantere yerleştirilemedi (imleçte kaldı).");
@@ -516,33 +500,17 @@ public final class CycleController {
                     if (!(client.screen instanceof MerchantScreen verifyScreen)) {
                         return fail(client, "Takas menüsü doğrulama sırasında kapandı.");
                     }
-                    Map<String, Integer> after = TradeInventory.snapshot(client, verifyScreen.getMenu());
-                    String mismatch = null;
-                    for (Map.Entry<String, Integer> expected : activeOffer.expectedDelta().entrySet()) {
-                        int before = countsBefore.getOrDefault(expected.getKey(), 0);
-                        int now = after.getOrDefault(expected.getKey(), 0);
-                        if (now != before + expected.getValue()) {
-                            mismatch = expected.getKey() + " " + before + " -> " + now
-                                    + " (beklenen " + (before + expected.getValue()) + ")";
-                            break;
-                        }
-                    }
-                    if (mismatch == null) {
-                        AutomationManager.INSTANCE.markVillagerTraded(current.getUUID());
-                        tradesDone++;
-                        villagerTrades++;
-                        tradesByRule.merge(activeRule.key(), 1, Integer::sum);
-                        // Per-trade inventory deltas are intentionally kept out of chat.
-                        // Villager completion reports the compact trade count instead.
-                        if (activeOffer.direction() == com.example.farmerautomation.trade.TradeDirection.EARN) {
-                            AutomationManager.INSTANCE.addEmeralds(activeOffer.output().count());
-                        }
+                    MerchantMenu menu = verifyScreen.getMenu();
+                    Map<String, Integer> after = TradeInventory.snapshot(client, menu);
+                    int confirmed = confirmedTradeCount(menu, after);
+                    if (confirmed > 0) {
+                        recordConfirmedTrades(client, confirmed);
                         ticks = 0;
                         selectRetries = 0;
                         AutomationManager.INSTANCE.setCarrotsInInventory(InventoryManager.countCarrots(client));
                         step = Step.DECIDE;
                     } else if (++ticks > VERIFY_TIMEOUT) {
-                        return fail(client, "Takas doğrulanamadı: " + mismatch + ".");
+                        return fail(client, "Takas doğrulanamadı: " + describeTradeDelta(after) + ".");
                     }
                 }
                 case CLOSE -> {
@@ -657,8 +625,7 @@ public final class CycleController {
             return fail(client, "Tarama alanında seçili mesleklerden canlı köylü bulunamadı.");
         }
         finishMessage = "Döngü bitti: " + tradesDone + " takas yapıldı, sıradaki köylü kalmadı.";
-        afterStore = Step.FINISH;
-        step = Step.STORE;
+        afterStore = Step.FINISH;        step = Step.STORE;
         return false;
     }
 
@@ -739,6 +706,48 @@ public final class CycleController {
             AutomationManager.INSTANCE.setCurrentTradeStockRemaining(0);
             villagerDone(client, done.kind().message());
         }
+    }
+
+    /**
+     * QUICK_MOVE aynı sonuç yuvasından birden fazla takası arka arkaya tamamlayabilir.
+     * Envanter farkını tek takas varsaymak yerine, sunucunun teklif kullanım sayısıyla doğrula.
+     */
+    private int confirmedTradeCount(MerchantMenu menu, Map<String, Integer> after) {
+        if (activeOffer == null || offerIndex < 0 || offerIndex >= menu.getOffers().size()) return 0;
+        int usesNow = menu.getOffers().get(offerIndex).getUses();
+        int confirmed = usesNow - activeOffer.uses();
+        int remainingUses = activeOffer.maxUses() - activeOffer.uses();
+        if (confirmed <= 0 || confirmed > remainingUses
+                || confirmed > MAX_TRADES_PER_VILLAGER - villagerTrades) return 0;
+
+        for (Map.Entry<String, Integer> expected : activeOffer.expectedDelta().entrySet()) {
+            int before = countsBefore.getOrDefault(expected.getKey(), 0);
+            int actualDelta = after.getOrDefault(expected.getKey(), 0) - before;
+            if (actualDelta != expected.getValue() * confirmed) return 0;
+        }
+        return confirmed;
+    }
+
+    private void recordConfirmedTrades(Minecraft client, int count) {
+        AutomationManager.INSTANCE.markVillagerTraded(current.getUUID());
+        tradesDone += count;
+        villagerTrades += count;
+        tradesByRule.merge(activeRule.key(), count, Integer::sum);
+        if (activeOffer.direction() == com.example.farmerautomation.trade.TradeDirection.EARN) {
+            AutomationManager.INSTANCE.addEmeralds(activeOffer.output().count() * count);
+        }
+    }
+
+    private String describeTradeDelta(Map<String, Integer> after) {
+        for (Map.Entry<String, Integer> expected : activeOffer.expectedDelta().entrySet()) {
+            int before = countsBefore.getOrDefault(expected.getKey(), 0);
+            int now = after.getOrDefault(expected.getKey(), 0);
+            if (now - before != expected.getValue()) {
+                return expected.getKey() + " " + before + " -> " + now
+                        + " (tek takas bekleneni " + (before + expected.getValue()) + ")";
+            }
+        }
+        return "sunucu teklif kullanım sayısı henüz güncellenmedi";
     }
 
     private void sendSelect(Minecraft client, MerchantMenu menu) {
