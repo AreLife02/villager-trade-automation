@@ -13,7 +13,6 @@ import com.example.farmerautomation.trade.OfferInfo;
 import com.example.farmerautomation.trade.OfferReader;
 import com.example.farmerautomation.trade.TradeInventory;
 import com.example.farmerautomation.trade.TradeItem;
-import com.example.farmerautomation.trade.TradePlan;
 import com.example.farmerautomation.trade.TradeProfession;
 import com.example.farmerautomation.trade.TradeRule;
 import com.example.farmerautomation.trade.TradeSelector;
@@ -220,14 +219,9 @@ public final class CycleController {
                 }
                 case SCAN -> {
                     villagers.clear();
-                    villagers.addAll(VillagerScanner.scan(client, Set.of(currentProfession)));
-                    AutomationConfig selectionConfig = AutomationConfig.get();
-                    if (selectionConfig.villagerSelectionEnabled) {
-                        villagers.removeIf(v -> !selectionConfig.selectedVillagerIds.contains(v.getUUID().toString()));
-                        villagers.sort((a, b) -> Integer.compare(
-                                selectionConfig.selectedVillagerIds.indexOf(a.getUUID().toString()),
-                                selectionConfig.selectedVillagerIds.indexOf(b.getUUID().toString())));
-                    }
+                    // Bu geliştirme aşamasında yalnızca çiftçi köylüler işlenir.
+                    // Kullanıcı seçimi/meslek sırası, uygun çiftçilerin taranmasını engellemez.
+                    villagers.addAll(FarmerScanner.scanFarmers(client));
                     AutomationManager.INSTANCE.setVillagerCount(villagers.size());
                     if (villagers.isEmpty()) {
                         // Bir meslekte köylü yoksa sonsuza kadar bekleme; sıradaki mesleğe geç.
@@ -401,7 +395,7 @@ public final class CycleController {
                     List<OfferInfo> offers = OfferReader.read(menu.getOffers());
                     Map<String, Integer> available = TradeInventory.snapshot(client, menu);
                     TradeSelector.Decision decision = TradeSelector.decide(currentProfession.id(), offers,
-                            AutomationConfig.get().tradeRules, tradesByRule, blockedOffers, available,
+                            enabledCarrotRules(), tradesByRule, blockedOffers, available,
                             CycleController::isCarrotRefillRule);
                     if (decision instanceof TradeSelector.Trade trade) {
                         activeOffer = trade.offer();
@@ -537,6 +531,7 @@ public final class CycleController {
                         }
                         ticks = 0;
                         selectRetries = 0;
+                        AutomationManager.INSTANCE.setCarrotsInInventory(InventoryManager.countCarrots(client));
                         step = Step.DECIDE;
                     } else if (++ticks > VERIFY_TIMEOUT) {
                         return fail(client, "Takas doğrulanamadı: " + mismatch + ".");
@@ -604,30 +599,22 @@ public final class CycleController {
     }
 
     private List<TradeProfession> resolveProfessions() {
-        AutomationConfig config = AutomationConfig.get();
-        List<String> requestedOrder = config.professionOrder;
-        if (config.villagerSelectionEnabled) {
-            requestedOrder = new ArrayList<>();
-            Minecraft client = Minecraft.getInstance();
-            if (client != null && client.player != null && client.level != null) {
-                List<Villager> visible = VillagerScanner.scan(client, EnumSet.allOf(TradeProfession.class));
-                for (String selectedId : config.selectedVillagerIds) {
-                    for (Villager villager : visible) {
-                        if (!villager.getUUID().toString().equals(selectedId)) continue;
-                        TradeProfession profession = VillagerScanner.professionOf(villager);
-                        if (profession != null && !requestedOrder.contains(profession.id())) {
-                            requestedOrder.add(profession.id());
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        List<String> ids = TradePlan.activeProfessions(requestedOrder, config.tradeRules,
-                id -> TradeProfession.fromId(id) != null);
-        List<TradeProfession> result = new ArrayList<>();
-        for (String id : ids) result.add(TradeProfession.fromId(id));
-        return result;
+        // Bu sürüm yalnızca etkin havuç -> zümrüt çiftçi takasını çalıştırır.
+        return enabledCarrotRules().isEmpty()
+                ? List.of()
+                : List.of(TradeProfession.FARMER);
+    }
+
+    private static List<TradeRule> enabledCarrotRules() {
+        List<TradeRule> configured = AutomationConfig.get().tradeRules;
+        if (configured == null) return List.of();
+        return configured.stream()
+                .filter(rule -> rule != null && rule.enabled && isCarrotRefillRule(rule))
+                .toList();
+    }
+
+    public UUID getCurrentVillagerId() {
+        return current == null ? null : current.getUUID();
     }
 
     /** Shop havuç alımı yalnızca etkin çiftçi havuç -> zümrüt kuralı varsa gerekir. */
@@ -640,7 +627,8 @@ public final class CycleController {
     }
 
     private static boolean isCarrotRefillRule(TradeRule rule) {
-        return TradeProfession.FARMER.id().equalsIgnoreCase(rule.profession)
+        return rule != null
+                && TradeProfession.FARMER.id().equalsIgnoreCase(rule.profession)
                 && com.example.farmerautomation.trade.TradeDirection.EARN.name().equals(rule.direction)
                 && CARROT_ID.equals(rule.itemId);
     }
