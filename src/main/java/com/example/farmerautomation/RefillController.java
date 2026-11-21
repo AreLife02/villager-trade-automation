@@ -105,9 +105,6 @@ public final class RefillController {
                         return Result.FAILED;
                     }
                 }
-                case SETTLE -> {
-                    if (++ticks >= SETTLE_TICKS) step = Step.CLICK_CATEGORY;
-                }
                 case CLICK_CATEGORY -> {
                     if (!(client.screen instanceof AbstractContainerScreen<?> screen)) return lost(client, "Shop menüsü kapandı.");
                     Slot slot = ShopGui.findSlotByItem(screen, Items.GOLDEN_CARROT);
