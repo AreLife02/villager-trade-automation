@@ -3,6 +3,8 @@ package com.example.farmerautomation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
+import java.util.UUID;
+
 public final class AutomationManager {
     public static final AutomationManager INSTANCE = new AutomationManager();
 
@@ -27,6 +29,7 @@ public final class AutomationManager {
     public synchronized AutomationState getState() { return state; }
     public synchronized boolean isRunning() { return running; }
     public synchronized int getCurrentVillagerIndex() { return currentVillagerIndex; }
+    public synchronized UUID getActiveVillagerId() { return cycleController.getCurrentVillagerId(); }
     public synchronized int getVillagerCount() { return villagerCount; }
     public synchronized int getTotalEmeralds() { return totalEmeralds; }
     public synchronized int getCarrotsInInventory() { return carrotsInInventory; }
