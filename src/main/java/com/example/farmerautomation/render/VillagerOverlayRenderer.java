@@ -1,8 +1,6 @@
 package com.example.farmerautomation.render;
 
 import com.example.farmerautomation.AutomationConfig;
-import com.example.farmerautomation.AutomationManager;
-import com.example.farmerautomation.AutomationState;
 import com.example.farmerautomation.FarmerScanner;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
@@ -18,18 +16,18 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import java.util.List;
-import java.util.UUID;
 
 /**
- * TradeAura-inspired farmer target boxes.
- * Eligible farmers are green; the farmer currently being traded with is yellow.
- * Rendering is visual-only and does not alter automation target selection.
+ * Green filled boxes for every eligible farmer.
+ * The entity scan is cached per client tick so rendering does not rescan/sort every frame.
  */
 public final class VillagerOverlayRenderer {
     private static final int FARMER_STROKE = 0xFF28F05B;
     private static final int FARMER_FILL = 0x5528F05B;
-    private static final int ACTIVE_STROKE = 0xFFFFD43B;
-    private static final int ACTIVE_FILL = 0x66FFD43B;
+
+    private static List<Villager> cachedFarmers = List.of();
+    private static net.minecraft.client.multiplayer.ClientLevel cachedLevel;
+    private static long lastScanGameTime = Long.MIN_VALUE;
 
     private VillagerOverlayRenderer() { }
 
@@ -42,37 +40,33 @@ public final class VillagerOverlayRenderer {
         if (client == null || client.player == null || client.level == null || client.gameRenderer == null) return;
         if (Boolean.FALSE.equals(AutomationConfig.get().villagerOverlayEnabled)) return;
 
-        List<Villager> farmers = FarmerScanner.scanFarmers(client);
-        if (farmers.isEmpty()) return;
+        long gameTime = client.level.getGameTime();
+        if (cachedLevel != client.level || lastScanGameTime != gameTime) {
+            cachedLevel = client.level;
+            lastScanGameTime = gameTime;
+            cachedFarmers = FarmerScanner.scanFarmers(client);
+        }
 
-        AutomationManager manager = AutomationManager.INSTANCE;
-        UUID activeTarget = manager.isRunning() && manager.getState() == AutomationState.CYCLE
-                ? manager.getActiveVillagerId()
-                : null;
+        if (cachedFarmers.isEmpty()) return;
 
         Vec3 camera = client.gameRenderer.getMainCamera().position();
         boolean gizmoCollectorAvailable = true;
 
-        for (Villager villager : farmers) {
+        for (Villager villager : cachedFarmers) {
             if (villager == null || !villager.isAlive()) continue;
-
-            boolean active = activeTarget != null && activeTarget.equals(villager.getUUID());
-            int stroke = active ? ACTIVE_STROKE : FARMER_STROKE;
-            int fill = active ? ACTIVE_FILL : FARMER_FILL;
 
             if (gizmoCollectorAvailable) {
                 try {
-                    Gizmos.cuboid(villager.getBoundingBox(), GizmoStyle.strokeAndFill(
-                            stroke, active ? 2.0f : 1.5f, fill));
+                    Gizmos.cuboid(villager.getBoundingBox(),
+                            GizmoStyle.strokeAndFill(FARMER_STROKE, 1.5f, FARMER_FILL));
                     continue;
                 } catch (IllegalStateException unavailableOutsideCollector) {
-                    // Some renderer replacements may invoke this event without a GizmoCollector.
-                    // Fall back to the existing buffered outline instead of interrupting rendering.
+                    // Fall back to the outline if a renderer replacement has no GizmoCollector.
                     gizmoCollectorAvailable = false;
                 }
             }
 
-            renderOutline(context, villager, camera, stroke);
+            renderOutline(context, villager, camera, FARMER_STROKE);
         }
     }
 
