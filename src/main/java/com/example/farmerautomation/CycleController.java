@@ -526,6 +526,7 @@ public final class CycleController {
                         }
                     }
                     if (mismatch == null) {
+                        AutomationManager.INSTANCE.markVillagerTraded(current.getUUID());
                         tradesDone++;
                         villagerTrades++;
                         tradesByRule.merge(activeRule.key(), 1, Integer::sum);
