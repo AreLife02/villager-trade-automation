@@ -81,6 +81,7 @@ public final class AutomationScreen extends Screen {
         y = drawInfo(graphics, y, "Çalışıyor: " + (manager.isRunning() ? "Evet" : "Hayır"));
         y = drawInfo(graphics, y, "Bulunan köylü: " + manager.getVillagerCount());
         y = drawInfo(graphics, y, "Aktif köylü: " + activeVillagerText());
+        y = drawInfo(graphics, y, "Kalan takas stoğu: " + tradeStockText());
         y = drawInfo(graphics, y, "Toplam zümrüt: " + manager.getTotalEmeralds());
         y = drawInfo(graphics, y, "Envanterdeki havuç: " + inventoryCarrotText());
         y = drawInfo(graphics, y, "Shulker doluluk: " + shulkerText());
@@ -104,6 +105,11 @@ public final class AutomationScreen extends Screen {
     private String activeVillagerText() {
         int index = manager.getCurrentVillagerIndex();
         return index < 0 ? "Yok" : (index + 1) + ". köylü";
+    }
+
+    private String tradeStockText() {
+        int remaining = manager.getCurrentTradeStockRemaining();
+        return remaining < 0 ? "Henüz okunmuyor" : String.valueOf(remaining);
     }
 
     private String inventoryCarrotText() {
