@@ -8,6 +8,7 @@ on:
       - fix/storage-fallback-ui
       - feature/trade-infrastructure
       - feature/tradeaura-visual-tracking
+      - feature/farmer-carrot-focused
   pull_request:
     branches:
       - main
