@@ -2,6 +2,7 @@ package com.example.farmerautomation.render;
 
 import com.example.farmerautomation.AutomationConfig;
 import com.example.farmerautomation.FarmerScanner;
+import com.example.farmerautomation.AutomationManager;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShapeRenderer;
@@ -22,8 +23,10 @@ import java.util.List;
  * The entity scan is cached per client tick so rendering does not rescan/sort every frame.
  */
 public final class VillagerOverlayRenderer {
-    private static final int FARMER_STROKE = 0xFF28F05B;
-    private static final int FARMER_FILL = 0x5528F05B;
+    private static final int UNTRADED_STROKE = 0xFF28F05B;
+    private static final int UNTRADED_FILL = 0x5528F05B;
+    private static final int TRADED_STROKE = 0xFFFF4545;
+    private static final int TRADED_FILL = 0x55FF4545;
 
     private static List<Villager> cachedFarmers = List.of();
     private static net.minecraft.client.multiplayer.ClientLevel cachedLevel;
@@ -55,10 +58,14 @@ public final class VillagerOverlayRenderer {
         for (Villager villager : cachedFarmers) {
             if (villager == null || !villager.isAlive()) continue;
 
+            boolean traded = AutomationManager.INSTANCE.hasTradedWithVillager(villager.getUUID());
+            int stroke = traded ? TRADED_STROKE : UNTRADED_STROKE;
+            int fill = traded ? TRADED_FILL : UNTRADED_FILL;
+
             if (gizmoCollectorAvailable) {
                 try {
                     Gizmos.cuboid(villager.getBoundingBox(),
-                            GizmoStyle.strokeAndFill(FARMER_STROKE, 1.5f, FARMER_FILL));
+                            GizmoStyle.strokeAndFill(stroke, 1.5f, fill));
                     continue;
                 } catch (IllegalStateException unavailableOutsideCollector) {
                     // Fall back to the outline if a renderer replacement has no GizmoCollector.
@@ -66,7 +73,7 @@ public final class VillagerOverlayRenderer {
                 }
             }
 
-            renderOutline(context, villager, camera, FARMER_STROKE);
+            renderOutline(context, villager, camera, stroke);
         }
     }
 
