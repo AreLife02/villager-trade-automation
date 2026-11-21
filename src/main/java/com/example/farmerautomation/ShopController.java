@@ -169,6 +169,10 @@ public final class ShopController {
             }
 
             case WAIT_PURCHASE -> {
+                if (!(client.screen instanceof AbstractContainerScreen<?> purchaseScreen)) {
+                    AutomationManager.INSTANCE.fail("Shop menüsü satın alma yanıtı beklenirken kapandı.");
+                    return false;
+                }
                 elapsedTicks++;
 
                 if (elapsedTicks < PURCHASE_WAIT_TICKS) {
@@ -185,13 +189,22 @@ public final class ShopController {
                     return false;
                 }
 
-                if (purchases >= MAX_PURCHASES) {
+                if (carrotsNow >= TARGET_CARROTS || purchases >= MAX_PURCHASES) {
                     waitTicks = FINAL_PURCHASE_WAIT_TICKS;
                     step = Step.FINAL_WAIT;
                 } else {
-                    // Menü 64 seçili kalıyor: sonraki alımlarda yalnızca Zümrüt Bloğu'na tıkla.
-                    waitTicks = 0;
-                    step = Step.CONFIRM_PURCHASE;
+                    // The server has confirmed this purchase; queue the next one immediately.
+                    Slot nextPurchase = findSlotByItem(purchaseScreen, Items.EMERALD_BLOCK);
+                    if (nextPurchase == null) {
+                        waitTicks = 0;
+                        step = Step.CONFIRM_PURCHASE;
+                    } else {
+                        carrotsBeforePurchase = carrotsNow;
+                        clickSlot(purchaseScreen, nextPurchase);
+                        purchases++;
+                        elapsedTicks = 0;
+                        step = Step.WAIT_PURCHASE;
+                    }
                 }
             }
 
