@@ -158,6 +158,9 @@ public final class RefillController {
                     step = Step.WAIT_PURCHASE;
                 }
                 case WAIT_PURCHASE -> {
+                    if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+                        return lost(client, "Shop menüsü satın alma yanıtı beklenirken kapandı.");
+                    }
                     ticks++;
                     if (ticks < PURCHASE_MIN_WAIT) return Result.RUNNING;
                     int now = InventoryManager.countCarrots(client);
