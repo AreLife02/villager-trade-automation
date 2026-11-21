@@ -18,11 +18,11 @@ public final class RefillController {
     private static final int STACK = 64;
     private static final int MAX_PURCHASES = 14;
     private static final int SHOP_TIMEOUT = 100;
-    private static final int SETTLE_TICKS = 2;
-    private static final int MENU_WAIT = 2;
-    private static final int PURCHASE_MIN_WAIT = 2;
+    private static final int SETTLE_TICKS = 1;
+    private static final int MENU_WAIT = 1;
+    private static final int PURCHASE_MIN_WAIT = 1;
     private static final int PURCHASE_TIMEOUT = 20;
-    private static final int CLOSE_WAIT = 2;
+    private static final int CLOSE_WAIT = 1;
     private static final int CLOSE_TIMEOUT = 40;
 
     private enum Step {
@@ -228,8 +228,5 @@ public final class RefillController {
 
     private static void chat(Minecraft client, String message) {
         ErrorHandler.info(message);
-        if (client != null && client.player != null) {
-            client.player.displayClientMessage(Component.literal("§6[Shop]§r " + message), false);
-        }
     }
 }
