@@ -1,12 +1,15 @@
 package com.example.farmerautomation.render;
 
 import com.example.farmerautomation.AutomationConfig;
-import com.example.farmerautomation.trade.TradeProfession;
-import com.example.farmerautomation.trade.VillagerScanner;
+import com.example.farmerautomation.AutomationManager;
+import com.example.farmerautomation.AutomationState;
+import com.example.farmerautomation.FarmerScanner;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.gizmos.GizmoStyle;
+import net.minecraft.gizmos.Gizmos;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -14,64 +17,80 @@ import net.minecraft.world.phys.shapes.Shapes;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
-import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.UUID;
 
 /**
- * Lightweight TradeAura-inspired villager outlines.
- * Selected villagers are green; detected but unselected villagers are muted gray.
- * This is a visual aid only and never changes automation targets or behavior.
+ * TradeAura-inspired farmer target boxes.
+ * Eligible farmers are green; the farmer currently being traded with is yellow.
+ * Rendering is visual-only and does not alter automation target selection.
  */
 public final class VillagerOverlayRenderer {
+    private static final int FARMER_STROKE = 0xFF28F05B;
+    private static final int FARMER_FILL = 0x5528F05B;
+    private static final int ACTIVE_STROKE = 0xFFFFD43B;
+    private static final int ACTIVE_FILL = 0x66FFD43B;
+
     private VillagerOverlayRenderer() { }
 
     public static void register() {
-        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> render(context.matrices(), context.consumers()));
+        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(VillagerOverlayRenderer::render);
     }
 
-    private static void render(PoseStack matrices, net.minecraft.client.renderer.MultiBufferSource consumers) {
+    private static void render(net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext context) {
         Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null || client.level == null || client.gameRenderer == null) return;
+        if (Boolean.FALSE.equals(AutomationConfig.get().villagerOverlayEnabled)) return;
 
-        AutomationConfig config = AutomationConfig.get();
-        if (Boolean.FALSE.equals(config.villagerOverlayEnabled)) return;
+        List<Villager> farmers = FarmerScanner.scanFarmers(client);
+        if (farmers.isEmpty()) return;
 
-        List<Villager> villagers = VillagerScanner.scan(client, EnumSet.allOf(TradeProfession.class));
-        if (villagers.isEmpty()) return;
-
-        Set<String> selected = config.selectedVillagerIds == null
-                ? Set.of()
-                : new HashSet<>(config.selectedVillagerIds);
+        AutomationManager manager = AutomationManager.INSTANCE;
+        UUID activeTarget = manager.isRunning() && manager.getState() == AutomationState.CYCLE
+                ? manager.getActiveVillagerId()
+                : null;
 
         Vec3 camera = client.gameRenderer.getMainCamera().position();
-        matrices.pushPose();
-        try {
-            VertexConsumer lines = consumers.getBuffer(RenderTypes.lines());
-            for (Villager villager : villagers) {
-                if (villager == null || !villager.isAlive()) continue;
+        boolean gizmoCollectorAvailable = true;
 
-                boolean isSelected = selected.contains(villager.getUUID().toString());
-                AABB relativeBox = villager.getBoundingBox().move(-camera.x, -camera.y, -camera.z);
+        for (Villager villager : farmers) {
+            if (villager == null || !villager.isAlive()) continue;
 
-                int color = isSelected
-                        ? packColor(242, 51, 255, 71)
-                        : packColor(107, 148, 158, 173);
+            boolean active = activeTarget != null && activeTarget.equals(villager.getUUID());
+            int stroke = active ? ACTIVE_STROKE : FARMER_STROKE;
+            int fill = active ? ACTIVE_FILL : FARMER_FILL;
 
-                // 1.21.11 moved line-box rendering to ShapeRenderer and RenderTypes.
-                ShapeRenderer.renderShape(matrices, lines, Shapes.create(relativeBox),
-                        0.0, 0.0, 0.0, color, 1.5f);
+            if (gizmoCollectorAvailable) {
+                try {
+                    Gizmos.cuboid(villager.getBoundingBox(), GizmoStyle.strokeAndFill(
+                            stroke, active ? 2.0f : 1.5f, fill));
+                    continue;
+                } catch (IllegalStateException unavailableOutsideCollector) {
+                    // Some renderer replacements may invoke this event without a GizmoCollector.
+                    // Fall back to the existing buffered outline instead of interrupting rendering.
+                    gizmoCollectorAvailable = false;
+                }
             }
-        } finally {
-            matrices.popPose();
+
+            renderOutline(context, villager, camera, stroke);
         }
     }
 
-    private static int packColor(int alpha, int red, int green, int blue) {
-        return (alpha & 0xFF) << 24
-                | (red & 0xFF) << 16
-                | (green & 0xFF) << 8
-                | (blue & 0xFF);
+    private static void renderOutline(
+            net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext context,
+            Villager villager, Vec3 camera, int color) {
+        if (context.matrices() == null || context.consumers() == null) return;
+
+        PoseStack matrices = context.matrices();
+        VertexConsumer lines = context.consumers().getBuffer(RenderTypes.lines());
+        AABB relativeBox = villager.getBoundingBox().move(-camera.x, -camera.y, -camera.z);
+
+        matrices.pushPose();
+        try {
+            ShapeRenderer.renderShape(matrices, lines, Shapes.create(relativeBox),
+                    0.0, 0.0, 0.0, color, 1.5f);
+        } finally {
+            matrices.popPose();
+        }
     }
 }
