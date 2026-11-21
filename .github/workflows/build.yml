@@ -9,6 +9,7 @@ on:
       - feature/trade-infrastructure
       - feature/tradeaura-visual-tracking
       - feature/farmer-carrot-focused
+      - feature/rapid-shop-villager
   pull_request:
     branches:
       - main
