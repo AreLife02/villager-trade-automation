@@ -98,7 +98,7 @@ public final class RefillController {
                 case WAIT_SHOP -> {
                     if (client.screen instanceof AbstractContainerScreen<?>) {
                         ticks = 0;
-                        step = Step.SETTLE;
+                        step = Step.CLICK_CATEGORY;
                     } else if (++ticks > SHOP_TIMEOUT) {
                         error = "Shop menüsü zamanında açılmadı.";
                         step = Step.DONE;
