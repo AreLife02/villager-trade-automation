@@ -4,6 +4,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class AutomationManager {
     public static final AutomationManager INSTANCE = new AutomationManager();
@@ -24,6 +26,7 @@ public final class AutomationManager {
     private int carrotsInInventory = -1;
     private int shulkerUsedSlots = -1;
     private int shulkerTotalSlots = -1;
+    private final Set<UUID> tradedVillagers = new HashSet<>();
 
     private AutomationManager() { }
 
@@ -31,6 +34,9 @@ public final class AutomationManager {
     public synchronized boolean isRunning() { return running; }
     public synchronized int getCurrentVillagerIndex() { return currentVillagerIndex; }
     public synchronized UUID getActiveVillagerId() { return cycleController.getCurrentVillagerId(); }
+    public synchronized boolean hasTradedWithVillager(UUID id) { return id != null && tradedVillagers.contains(id); }
+    public synchronized void markVillagerTraded(UUID id) { if (id != null) tradedVillagers.add(id); }
+    private synchronized void resetTradedVillagers() { tradedVillagers.clear(); }
     public synchronized int getVillagerCount() { return villagerCount; }
     public synchronized int getTotalEmeralds() { return totalEmeralds; }
     public synchronized int getCurrentTradeStockRemaining() { return currentTradeStockRemaining; }
@@ -46,6 +52,7 @@ public final class AutomationManager {
         stateBeforePause = AutomationState.CYCLE;
         currentVillagerIndex = -1;
         currentTradeStockRemaining = -1;
+        resetTradedVillagers();
         cycleController.reset();
         ErrorHandler.info("Otomatik çiftçi takası başlatıldı. Hedef: havuçları zümrüte çevirmek.");
     }
