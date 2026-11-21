@@ -24,7 +24,7 @@ public final class AutomationConfig {
     public int villagerSearchRadius = 32;
     public int navigationTimeoutTicks = 600;
     public int actionTimeoutTicks = 100;
-    public int tradeIntervalTicks = 10;
+    public int tradeIntervalTicks = 1;
     public boolean openTradeScreenAfterNavigation = false;
 
     public boolean unlimitedCycle = false;
@@ -71,9 +71,9 @@ public final class AutomationConfig {
             loaded.storageSearchRadius = Math.max(1, Math.min(32, loaded.storageSearchRadius));
             if (loaded.professionOrder == null) loaded.professionOrder = new java.util.ArrayList<>(List.of("farmer"));
             if (loaded.selectedVillagerIds == null) loaded.selectedVillagerIds = new java.util.ArrayList<>();
-            // 10 client ticks are approximately 0.5 seconds at 20 TPS.
-            boolean tradeIntervalUpdated = loaded.tradeIntervalTicks != 10;
-            loaded.tradeIntervalTicks = 10;
+            // Carrot trade selection runs at the fastest practical client-tick interval.
+            boolean tradeIntervalUpdated = loaded.tradeIntervalTicks != 1;
+            loaded.tradeIntervalTicks = 1;
             if (loaded.tradeRules == null || loaded.tradeRules.isEmpty()) {
                 loaded.tradeRules = com.example.farmerautomation.trade.DefaultTradeRules.create();
                 loaded.save();
