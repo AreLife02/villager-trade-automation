@@ -34,6 +34,10 @@ public final class AutomationConfig {
 
     /** Seçili meslekler, öncelik sırasıyla (ilk = en yüksek öncelik). Varsayılan yalnızca çiftçi. */
     public List<String> professionOrder = new java.util.ArrayList<>(List.of("farmer"));
+    /** UUID listesi: yönetim ekranında seçilen köylüler ve kullanıcının belirlediği sıra. */
+    public List<String> selectedVillagerIds = new java.util.ArrayList<>();
+    /** false ise eski davranış korunur; true ise yalnızca listedeki köylüler işlenir. */
+    public boolean villagerSelectionEnabled = false;
     /** Kullanıcının seçtiği takas kuralları; her mesleğin kuralları kendi içinde liste sırasıyla önceliklidir. */
     public List<com.example.farmerautomation.trade.TradeRule> tradeRules =
             com.example.farmerautomation.trade.DefaultTradeRules.create();
@@ -64,6 +68,7 @@ public final class AutomationConfig {
             loaded.villagerSearchRadius = Math.max(8, Math.min(256, loaded.villagerSearchRadius));
             loaded.storageSearchRadius = Math.max(1, Math.min(32, loaded.storageSearchRadius));
             if (loaded.professionOrder == null) loaded.professionOrder = new java.util.ArrayList<>(List.of("farmer"));
+            if (loaded.selectedVillagerIds == null) loaded.selectedVillagerIds = new java.util.ArrayList<>();
             if (loaded.tradeRules == null || loaded.tradeRules.isEmpty()) {
                 loaded.tradeRules = com.example.farmerautomation.trade.DefaultTradeRules.create();
                 loaded.save();
