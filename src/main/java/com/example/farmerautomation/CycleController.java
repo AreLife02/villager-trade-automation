@@ -518,8 +518,32 @@ public final class CycleController {
                         return fail(client, "Takas menüsü sonuç yerleştirilirken kapandı.");
                     }
                     if (screen.getMenu().getCarried().isEmpty()) {
-                        ticks = 0;
-                        step = Step.VERIFY_TRADE;
+                        Map<String, Integer> after = TradeInventory.snapshot(client, screen.getMenu());
+                        String mismatch = null;
+                        for (Map.Entry<String, Integer> expected : activeOffer.expectedDelta().entrySet()) {
+                            int before = countsBefore.getOrDefault(expected.getKey(), 0);
+                            int now = after.getOrDefault(expected.getKey(), 0);
+                            if (now != before + expected.getValue()) {
+                                mismatch = expected.getKey() + " " + before + " -> " + now
+                                        + " (beklenen " + (before + expected.getValue()) + ")";
+                                break;
+                            }
+                        }
+                        if (mismatch == null) {
+                            AutomationManager.INSTANCE.markVillagerTraded(current.getUUID());
+                            tradesDone++;
+                            villagerTrades++;
+                            tradesByRule.merge(activeRule.key(), 1, Integer::sum);
+                            if (activeOffer.direction() == com.example.farmerautomation.trade.TradeDirection.EARN) {
+                                AutomationManager.INSTANCE.addEmeralds(activeOffer.output().count());
+                            }
+                            ticks = 0;
+                            selectRetries = 0;
+                            AutomationManager.INSTANCE.setCarrotsInInventory(InventoryManager.countCarrots(client));
+                            step = Step.DECIDE;
+                        } else if (++ticks > VERIFY_TIMEOUT) {
+                            return fail(client, "Takas doğrulanamadı: " + mismatch + ".");
+                        }
                     } else if (++ticks > CLICK_TIMEOUT) {
                         return fail(client, activeOffer.output().name() + " envantere yerleştirilemedi (imleçte kaldı).");
                     }
