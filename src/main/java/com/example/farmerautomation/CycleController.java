@@ -445,14 +445,10 @@ public final class CycleController {
                     if (ticks >= 1 && !result.isEmpty() && OfferReader.baseId(result).equals(output.baseId())
                             && result.getCount() == output.count()) {
                         resultStack = result.copy();
-                        targetSlot = findPlaceSlot(menu);
-                        if (targetSlot < 0) {
-                            return fail(client, "Envanterde " + activeOffer.output().name()
-                                    + " için yer yok; takas sonucu alınmadı.");
-                        }
-                        client.gameMode.handleInventoryMouseClick(menu.containerId, RESULT_SLOT, 0, ClickType.PICKUP, client.player);
+                        // QUICK_MOVE performs result pickup and inventory placement as one action.
+                        client.gameMode.handleInventoryMouseClick(menu.containerId, RESULT_SLOT, 0, ClickType.QUICK_MOVE, client.player);
                         ticks = 0;
-                        step = Step.WAIT_TAKE;
+                        step = Step.WAIT_PLACE;
                         return false;
                     }
                     if (ticks > RESULT_TIMEOUT) {
