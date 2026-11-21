@@ -86,6 +86,7 @@ public final class AutomationManager {
         stateBeforePause = AutomationState.CYCLE;
         currentVillagerIndex = -1;
         currentTradeStockRemaining = -1;
+        resetTradedVillagers();
         cycleController.reset();
         ErrorHandler.info("Döngü başlatıldı.");
     }
