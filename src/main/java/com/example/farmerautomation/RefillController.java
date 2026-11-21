@@ -167,12 +167,25 @@ public final class RefillController {
                         }
                         return Result.RUNNING;
                     }
-                    chat(client, "Alım " + purchases + ": +" + (now - carrotsBefore) + " havuç (toplam " + now + ").");
                     AutomationManager.INSTANCE.setCarrotsInInventory(now);
                     if (now >= TARGET_CARROTS) {
                         step = Step.CLOSE;
+                    } else if (purchases >= MAX_PURCHASES) {
+                        return failAndClose("Alım sınırına ulaşıldı; hedef havuç miktarı tamamlanamadı.");
                     } else {
-                        step = Step.CONFIRM;
+                        // Start the next purchase immediately when the server confirms this one.
+                        Slot nextPurchase = ShopGui.findSlotByItem(screen, Items.EMERALD_BLOCK);
+                        if (nextPurchase == null) {
+                            step = Step.CONFIRM;
+                        } else if (InventoryManager.remainingCarrotCapacity(client) < STACK) {
+                            limitedByCapacity = true;
+                            step = Step.CLOSE;
+                        } else {
+                            carrotsBefore = now;
+                            ShopGui.clickSlot(screen, nextPurchase);
+                            purchases++;
+                            ticks = 0;
+                        }
                     }
                 }
                 case CLOSE -> {
