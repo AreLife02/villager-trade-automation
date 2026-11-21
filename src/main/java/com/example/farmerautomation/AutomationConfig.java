@@ -38,6 +38,8 @@ public final class AutomationConfig {
     public List<String> selectedVillagerIds = new java.util.ArrayList<>();
     /** false ise eski davranış korunur; true ise yalnızca listedeki köylüler işlenir. */
     public boolean villagerSelectionEnabled = false;
+    /** TradeAura-style outlines: selected villagers are green, other detected villagers are dim gray. */
+    public Boolean villagerOverlayEnabled = true;
     /** Kullanıcının seçtiği takas kuralları; her mesleğin kuralları kendi içinde liste sırasıyla önceliklidir. */
     public List<com.example.farmerautomation.trade.TradeRule> tradeRules =
             com.example.farmerautomation.trade.DefaultTradeRules.create();
