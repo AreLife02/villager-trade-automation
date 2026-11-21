@@ -13,13 +13,13 @@ import org.lwjgl.glfw.GLFW;
 
 public final class ShopController {
     private static final int TARGET_CARROTS = 768;
-    private static final int CATEGORY_WAIT_TICKS = 10;
-    private static final int CARROT_WAIT_TICKS = 10;
-    private static final int PLUS_TEN_WAIT_TICKS = 10;
-    private static final int PURCHASE_WAIT_TICKS = 3;          // 0,15 sn: bir sonraki alıma geçmek için en az bekleme
+    private static final int CATEGORY_WAIT_TICKS = 2;
+    private static final int CARROT_WAIT_TICKS = 2;
+    private static final int PLUS_TEN_WAIT_TICKS = 2;
+    private static final int PURCHASE_WAIT_TICKS = 2;          // 0,15 sn: bir sonraki alıma geçmek için en az bekleme
     private static final int PURCHASE_TIMEOUT_TICKS = 20;      // 1 sn: havuç artışı bu sürede görülmezse hata
-    private static final int FINAL_PURCHASE_WAIT_TICKS = 10;   // 0,5 sn: 12. alımın tamamen işlenmesi için
-    private static final int CLOSE_WAIT_TICKS = 5;
+    private static final int FINAL_PURCHASE_WAIT_TICKS = 2;   // 0,5 sn: 12. alımın tamamen işlenmesi için
+    private static final int CLOSE_WAIT_TICKS = 2;
     private static final int CLOSE_TIMEOUT_TICKS = 40;
     private static final int NO_SCREEN_TIMEOUT_TICKS = 100;    // 5 sn: shop menüsü hiç açılmazsa hata
     private static final int MAX_PURCHASES = 12;
