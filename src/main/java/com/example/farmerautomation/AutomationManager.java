@@ -78,6 +78,7 @@ public final class AutomationManager {
         state = AutomationState.CYCLE;
         stateBeforePause = AutomationState.CYCLE;
         currentVillagerIndex = -1;
+        currentTradeStockRemaining = -1;
         cycleController.reset();
         ErrorHandler.info("Döngü başlatıldı.");
     }
@@ -134,6 +135,7 @@ public final class AutomationManager {
         state = AutomationState.IDLE;
         stateBeforePause = AutomationState.IDLE;
         currentVillagerIndex = -1;
+        currentTradeStockRemaining = -1;
         shopController.reset();
         diagnosticController.reset();
         cycleController.reset();
