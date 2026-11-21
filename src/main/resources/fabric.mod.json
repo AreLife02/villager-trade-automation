@@ -9,6 +9,9 @@
   ],
   "license": "MIT",
   "environment": "client",
+  "mixins": [
+    "farmerautomation.mixins.json"
+  ],
   "entrypoints": {
     "client": [
       "com.example.farmerautomation.MainMod"
