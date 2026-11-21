@@ -401,11 +401,16 @@ public final class CycleController {
                         activeOffer = trade.offer();
                         activeRule = trade.rule();
                         offerIndex = activeOffer.index();
+                        AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
+                                Math.max(0, activeOffer.maxUses() - activeOffer.uses()));
                         step = Step.SELECT_TRADE;
                     } else if (decision instanceof TradeSelector.Refill refillDecision) {
                         cost = refillDecision.offer().primary().count();
+                        AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
+                                Math.max(0, refillDecision.offer().maxUses() - refillDecision.offer().uses()));
                         notEnoughCarrots(client, available.getOrDefault(CARROT_ID, 0));
                     } else if (decision instanceof TradeSelector.Done done) {
+                        AutomationManager.INSTANCE.setCurrentTradeStockRemaining(0);
                         villagerDone(client, done.kind().message());
                     }
                 }
