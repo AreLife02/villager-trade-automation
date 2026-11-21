@@ -30,7 +30,7 @@ public final class VillagerManagementScreen extends Screen {
     @Override
     protected void init() {
         scanVillagers();
-        rebuildSelectionWidgets();
+        refreshSelectionWidgets();
     }
 
     private void scanVillagers() {
@@ -52,7 +52,7 @@ public final class VillagerManagementScreen extends Screen {
         page = Math.min(page, Math.max(0, (villagers.size() - 1) / PAGE_SIZE));
     }
 
-    private void rebuildSelectionWidgets() {
+    private void refreshSelectionWidgets() {
         clearWidgets();
         int center = width / 2;
         int rowY = Math.max(78, height / 2 - 65);
@@ -62,23 +62,23 @@ public final class VillagerManagementScreen extends Screen {
                 Boolean.FALSE.equals(config.villagerOverlayEnabled) ? "Kutular: Kapalı" : "Kutular: Açık"), b -> {
             config.villagerOverlayEnabled = !Boolean.FALSE.equals(config.villagerOverlayEnabled);
             config.save();
-            rebuildSelectionWidgets();
+            refreshSelectionWidgets();
         }).bounds(width - 108, 12, 100, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Yeniden Tara"), b -> {
             scanVillagers();
-            rebuildSelectionWidgets();
+            refreshSelectionWidgets();
         }).bounds(center - 155, 48, 100, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Hepsini Seç"), b -> {
             config.selectedVillagerIds.clear();
             for (Villager villager : villagers) config.selectedVillagerIds.add(villager.getUUID().toString());
             config.save();
-            rebuildSelectionWidgets();
+            refreshSelectionWidgets();
         }).bounds(center - 50, 48, 100, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Hiçbirini Seçme"), b -> {
             config.selectedVillagerIds.clear();
             config.save();
-            rebuildSelectionWidgets();
+            refreshSelectionWidgets();
         }).bounds(center + 55, 48, 100, 20).build());
 
         int start = page * PAGE_SIZE;
@@ -97,7 +97,7 @@ public final class VillagerManagementScreen extends Screen {
                 if (config.selectedVillagerIds.contains(uuid)) config.selectedVillagerIds.remove(uuid);
                 else config.selectedVillagerIds.add(uuid);
                 config.save();
-                rebuildSelectionWidgets();
+                refreshSelectionWidgets();
             }).bounds(center - 155, y, 265, 22).build());
 
             addRenderableWidget(Button.builder(Component.literal("↑"), b -> move(uuid, -1))
@@ -108,11 +108,11 @@ public final class VillagerManagementScreen extends Screen {
 
         addRenderableWidget(Button.builder(Component.literal("◀"), b -> {
             page = Math.max(0, page - 1);
-            rebuildSelectionWidgets();
+            refreshSelectionWidgets();
         }).bounds(center - 155, height - 53, 35, 20).build());
         addRenderableWidget(Button.builder(Component.literal("▶"), b -> {
             page = Math.min(Math.max(0, (villagers.size() - 1) / PAGE_SIZE), page + 1);
-            rebuildSelectionWidgets();
+            refreshSelectionWidgets();
         }).bounds(center - 115, height - 53, 35, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Geri"), b -> Minecraft.getInstance().setScreen(parent))
                 .bounds(center - 50, height - 53, 100, 20).build());
@@ -138,7 +138,7 @@ public final class VillagerManagementScreen extends Screen {
         config.selectedVillagerIds.set(target, uuid);
         config.selectedVillagerIds.set(index, other);
         config.save();
-        rebuildSelectionWidgets();
+        refreshSelectionWidgets();
     }
 
     @Override
