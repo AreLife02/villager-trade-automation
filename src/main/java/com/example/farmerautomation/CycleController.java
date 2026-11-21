@@ -220,6 +220,13 @@ public final class CycleController {
                 case SCAN -> {
                     villagers.clear();
                     villagers.addAll(VillagerScanner.scan(client, Set.of(currentProfession)));
+                    AutomationConfig selectionConfig = AutomationConfig.get();
+                    if (selectionConfig.villagerSelectionEnabled) {
+                        villagers.removeIf(v -> !selectionConfig.selectedVillagerIds.contains(v.getUUID().toString()));
+                        villagers.sort((a, b) -> Integer.compare(
+                                selectionConfig.selectedVillagerIds.indexOf(a.getUUID().toString()),
+                                selectionConfig.selectedVillagerIds.indexOf(b.getUUID().toString())));
+                    }
                     AutomationManager.INSTANCE.setVillagerCount(villagers.size());
                     if (villagers.isEmpty()) {
                         // Bir meslekte köylü yoksa sonsuza kadar bekleme; sıradaki mesleğe geç.
