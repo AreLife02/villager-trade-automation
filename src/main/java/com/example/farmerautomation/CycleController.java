@@ -619,11 +619,7 @@ public final class CycleController {
 
     /** Shop havuç alımı yalnızca etkin çiftçi havuç -> zümrüt kuralı varsa gerekir. */
     private boolean needsCarrotShop() {
-        if (!activeProfessions.contains(TradeProfession.FARMER)) return false;
-        for (TradeRule rule : AutomationConfig.get().tradeRules) {
-            if (rule.enabled && isCarrotRefillRule(rule)) return true;
-        }
-        return false;
+        return activeProfessions.contains(TradeProfession.FARMER) && !enabledCarrotRules().isEmpty();
     }
 
     private static boolean isCarrotRefillRule(TradeRule rule) {
