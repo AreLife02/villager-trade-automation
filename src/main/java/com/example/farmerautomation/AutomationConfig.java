@@ -72,7 +72,8 @@ public final class AutomationConfig {
             if (loaded.professionOrder == null) loaded.professionOrder = new java.util.ArrayList<>(List.of("farmer"));
             if (loaded.selectedVillagerIds == null) loaded.selectedVillagerIds = new java.util.ArrayList<>();
             // Farmer carrot trading uses the minimum one-tick interval for the fastest safe cycle.
-            boolean fastIntervalUpdated = loaded.tradeIntervalTicks != 1;\n            loaded.tradeIntervalTicks = 1;\n            if (loaded.tradeRules == null || loaded.tradeRules.isEmpty()) {
+            boolean fastIntervalUpdated = loaded.tradeIntervalTicks != 1;
+            loaded.tradeIntervalTicks = 1;\n            if (loaded.tradeRules == null || loaded.tradeRules.isEmpty()) {
                 loaded.tradeRules = com.example.farmerautomation.trade.DefaultTradeRules.create();
                 loaded.save();
             }
