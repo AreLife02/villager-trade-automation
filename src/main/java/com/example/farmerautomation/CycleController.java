@@ -403,7 +403,12 @@ public final class CycleController {
                         offerIndex = activeOffer.index();
                         AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
                                 Math.max(0, activeOffer.maxUses() - activeOffer.uses()));
-                        step = Step.SELECT_TRADE;
+                        countsBefore = TradeInventory.snapshot(client, menu);
+                        selectRetries = 0;
+                        sendSelect(client, menu);
+                        lastSelectTick = tickCounter;
+                        ticks = 0;
+                        step = Step.WAIT_RESULT;
                     } else if (decision instanceof TradeSelector.Refill refillDecision) {
                         cost = refillDecision.offer().primary().count();
                         AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
@@ -440,7 +445,14 @@ public final class CycleController {
                     if (ticks >= 1 && !result.isEmpty() && OfferReader.baseId(result).equals(output.baseId())
                             && result.getCount() == output.count()) {
                         resultStack = result.copy();
-                        step = Step.TAKE_RESULT;
+                        targetSlot = findPlaceSlot(menu);
+                        if (targetSlot < 0) {
+                            return fail(client, "Envanterde " + activeOffer.output().name()
+                                    + " için yer yok; takas sonucu alınmadı.");
+                        }
+                        client.gameMode.handleInventoryMouseClick(menu.containerId, RESULT_SLOT, 0, ClickType.PICKUP, client.player);
+                        ticks = 0;
+                        step = Step.WAIT_TAKE;
                         return false;
                     }
                     if (ticks > RESULT_TIMEOUT) {
@@ -485,7 +497,9 @@ public final class CycleController {
                     }
                     ItemStack carried = screen.getMenu().getCarried();
                     if (!carried.isEmpty() && OfferReader.baseId(carried).equals(activeOffer.output().baseId())) {
-                        step = Step.PLACE_RESULT;
+                        client.gameMode.handleInventoryMouseClick(screen.getMenu().containerId, targetSlot, 0, ClickType.PICKUP, client.player);
+                        ticks = 0;
+                        step = Step.WAIT_PLACE;
                     } else if (++ticks > CLICK_TIMEOUT) {
                         return fail(client, "Sonuç slotundan " + activeOffer.output().name() + " alınamadı.");
                     }
