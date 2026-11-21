@@ -2,6 +2,7 @@ package com.example.farmerautomation;
 
 import com.example.farmerautomation.screen.AutomationScreen;
 import com.example.farmerautomation.screen.VillagerManagementScreen;
+import com.example.farmerautomation.render.VillagerOverlayRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -18,6 +19,7 @@ public final class MainMod implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         AutomationConfig.load();
+        VillagerOverlayRenderer.register();
 
         KeyMapping.Category category = KeyMapping.Category.register(
                 Identifier.fromNamespaceAndPath(MOD_ID, "controls")
