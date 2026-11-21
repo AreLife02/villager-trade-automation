@@ -58,6 +58,13 @@ public final class VillagerManagementScreen extends Screen {
         int rowY = Math.max(78, height / 2 - 65);
         AutomationConfig config = AutomationConfig.get();
 
+        addRenderableWidget(Button.builder(Component.literal(
+                Boolean.FALSE.equals(config.villagerOverlayEnabled) ? "Kutular: Kapalı" : "Kutular: Açık"), b -> {
+            config.villagerOverlayEnabled = !Boolean.FALSE.equals(config.villagerOverlayEnabled);
+            config.save();
+            rebuildWidgets();
+        }).bounds(width - 108, 12, 100, 20).build());
+
         addRenderableWidget(Button.builder(Component.literal("Yeniden Tara"), b -> {
             scanVillagers();
             rebuildWidgets();
