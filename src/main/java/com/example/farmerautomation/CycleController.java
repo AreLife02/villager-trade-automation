@@ -21,6 +21,7 @@ import com.example.farmerautomation.trade.VillagerScanner;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -604,7 +605,25 @@ public final class CycleController {
 
     private List<TradeProfession> resolveProfessions() {
         AutomationConfig config = AutomationConfig.get();
-        List<String> ids = TradePlan.activeProfessions(config.professionOrder, config.tradeRules,
+        List<String> requestedOrder = config.professionOrder;
+        if (config.villagerSelectionEnabled) {
+            requestedOrder = new ArrayList<>();
+            Minecraft client = Minecraft.getInstance();
+            if (client != null && client.player != null && client.level != null) {
+                List<Villager> visible = VillagerScanner.scan(client, EnumSet.allOf(TradeProfession.class));
+                for (String selectedId : config.selectedVillagerIds) {
+                    for (Villager villager : visible) {
+                        if (!villager.getUUID().toString().equals(selectedId)) continue;
+                        TradeProfession profession = VillagerScanner.professionOf(villager);
+                        if (profession != null && !requestedOrder.contains(profession.id())) {
+                            requestedOrder.add(profession.id());
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        List<String> ids = TradePlan.activeProfessions(requestedOrder, config.tradeRules,
                 id -> TradeProfession.fromId(id) != null);
         List<TradeProfession> result = new ArrayList<>();
         for (String id : ids) result.add(TradeProfession.fromId(id));
