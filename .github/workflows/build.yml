@@ -7,6 +7,7 @@ on:
       - phase-a-diagnostics
       - fix/storage-fallback-ui
       - feature/trade-infrastructure
+      - feature/tradeaura-visual-tracking
   pull_request:
     branches:
       - main
