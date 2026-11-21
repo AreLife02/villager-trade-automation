@@ -39,7 +39,7 @@ public final class CycleController {
     private static final int CLICK_TIMEOUT = 20;
     private static final int VERIFY_TIMEOUT = 40;
     private static final int CLOSE_TIMEOUT = 40;
-    private static final int CLOSE_WAIT = 5;
+    private static final int CLOSE_WAIT = 1;
     private static final int MAX_TRADES_PER_VILLAGER = 64;
     private static final int MAX_REFILLS = 20;
 
@@ -320,7 +320,7 @@ public final class CycleController {
                     }
                     // Kamera açıları değişince Minecraft'ın crosshair hitResult değeri aynı
                     // tick içinde güncellenmeyebilir. En az iki client tick bekle.
-                    if (++ticks < 2) return false;
+                    if (++ticks < 1) return false;
 
                     if (client.hitResult instanceof EntityHitResult entityHit
                             && entityHit.getEntity() == current) {
@@ -383,42 +383,7 @@ public final class CycleController {
                     }
                     step = Step.DECIDE;
                 }
-                case DECIDE -> {
-                    if (!(client.screen instanceof MerchantScreen screen)) {
-                        return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
-                    }
-                    MerchantMenu menu = screen.getMenu();
-                    if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
-                        villagerDone(client, "güvenlik sınırı (" + MAX_TRADES_PER_VILLAGER + " takas) doldu");
-                        return false;
-                    }
-                    List<OfferInfo> offers = OfferReader.read(menu.getOffers());
-                    Map<String, Integer> available = TradeInventory.snapshot(client, menu);
-                    TradeSelector.Decision decision = TradeSelector.decide(currentProfession.id(), offers,
-                            enabledCarrotRules(), tradesByRule, blockedOffers, available,
-                            CycleController::isCarrotRefillRule);
-                    if (decision instanceof TradeSelector.Trade trade) {
-                        activeOffer = trade.offer();
-                        activeRule = trade.rule();
-                        offerIndex = activeOffer.index();
-                        AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
-                                Math.max(0, activeOffer.maxUses() - activeOffer.uses()));
-                        countsBefore = TradeInventory.snapshot(client, menu);
-                        selectRetries = 0;
-                        sendSelect(client, menu);
-                        lastSelectTick = tickCounter;
-                        ticks = 0;
-                        step = Step.WAIT_RESULT;
-                    } else if (decision instanceof TradeSelector.Refill refillDecision) {
-                        cost = refillDecision.offer().primary().count();
-                        AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
-                                Math.max(0, refillDecision.offer().maxUses() - refillDecision.offer().uses()));
-                        notEnoughCarrots(client, available.getOrDefault(CARROT_ID, 0));
-                    } else if (decision instanceof TradeSelector.Done done) {
-                        AutomationManager.INSTANCE.setCurrentTradeStockRemaining(0);
-                        villagerDone(client, done.kind().message());
-                    }
-                }
+                case DECIDE -> decide(client);
                 case SELECT_TRADE -> {
                     if (!(client.screen instanceof MerchantScreen screen)) {
                         return fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
@@ -536,7 +501,10 @@ public final class CycleController {
                             ticks = 0;
                             selectRetries = 0;
                             AutomationManager.INSTANCE.setCarrotsInInventory(InventoryManager.countCarrots(client));
+                            // Re-evaluate and queue the next trade in this same client tick.
+                            // This removes one idle tick between every confirmed trade.
                             step = Step.DECIDE;
+                            decide(client);
                         } else if (++ticks > VERIFY_TIMEOUT) {
                             return fail(client, "Takas doğrulanamadı: " + mismatch + ".");
                         }
@@ -733,6 +701,44 @@ public final class CycleController {
         afterRefill = Step.INTERACT;
         afterClose = Step.REFILL;
         step = Step.CLOSE;
+    }
+
+    private void decide(Minecraft client) {
+        if (!(client.screen instanceof MerchantScreen screen)) {
+            fail(client, "Takas menüsü beklenmedik şekilde kapandı.");
+            return;
+        }
+        MerchantMenu menu = screen.getMenu();
+        if (villagerTrades >= MAX_TRADES_PER_VILLAGER) {
+            villagerDone(client, "güvenlik sınırı (" + MAX_TRADES_PER_VILLAGER + " takas) doldu");
+            return;
+        }
+        List<OfferInfo> offers = OfferReader.read(menu.getOffers());
+        Map<String, Integer> available = TradeInventory.snapshot(client, menu);
+        TradeSelector.Decision decision = TradeSelector.decide(currentProfession.id(), offers,
+                enabledCarrotRules(), tradesByRule, blockedOffers, available,
+                CycleController::isCarrotRefillRule);
+        if (decision instanceof TradeSelector.Trade trade) {
+            activeOffer = trade.offer();
+            activeRule = trade.rule();
+            offerIndex = activeOffer.index();
+            AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
+                    Math.max(0, activeOffer.maxUses() - activeOffer.uses()));
+            countsBefore = TradeInventory.snapshot(client, menu);
+            selectRetries = 0;
+            sendSelect(client, menu);
+            lastSelectTick = tickCounter;
+            ticks = 0;
+            step = Step.WAIT_RESULT;
+        } else if (decision instanceof TradeSelector.Refill refillDecision) {
+            cost = refillDecision.offer().primary().count();
+            AutomationManager.INSTANCE.setCurrentTradeStockRemaining(
+                    Math.max(0, refillDecision.offer().maxUses() - refillDecision.offer().uses()));
+            notEnoughCarrots(client, available.getOrDefault(CARROT_ID, 0));
+        } else if (decision instanceof TradeSelector.Done done) {
+            AutomationManager.INSTANCE.setCurrentTradeStockRemaining(0);
+            villagerDone(client, done.kind().message());
+        }
     }
 
     private void sendSelect(Minecraft client, MerchantMenu menu) {
