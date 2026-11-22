@@ -1,4 +1,4 @@
-name: Build
+name: Build Farmer Automation
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
       - phase-a-diagnostics
       - fix/storage-fallback-ui
       - feature/trade-infrastructure
-      - feature/tradeaura-visual-tracking
       - feature/farmer-carrot-focused
       - feature/rapid-shop-villager
   pull_request:
@@ -21,10 +20,12 @@ on:
         default: 'false'
         type: boolean
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,7 +36,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Setup Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.0'
@@ -43,21 +44,22 @@ jobs:
       - name: Build mod
         run: gradle build --no-daemon
 
-      - name: Upload build artifacts
+      - name: Upload installable mod JAR
         uses: actions/upload-artifact@v4
         with:
           name: farmer-automation-jar
-          path: build/libs/*.jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
           if-no-files-found: error
+          retention-days: 14
 
   release:
     if: github.event_name == 'workflow_dispatch' && inputs.create_release == true
     needs: build
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -72,9 +74,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: Villager Trade Automation v${{ github.run_number }}
+          name: Farmer Automation v${{ github.run_number }}
           body: |
-            Minecraft 1.21.11 Fabric için otomatik köylü takas modu.
-
-            Bu derleme oyun içi test için hazırlanmıştır.
+            Minecraft 1.21.11 Fabric için Farmer Automation mod derlemesi.
           files: release-files/*.jar
